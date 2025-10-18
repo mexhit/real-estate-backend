@@ -13,4 +13,8 @@ export class PropertiesService {
   getProperties() {
     return this.propertyRepository.find();
   }
+
+  createProperty(property: Property): Promise<Property> {
+    return this.propertyRepository.save(property);
+  }
 }

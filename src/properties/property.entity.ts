@@ -9,6 +9,12 @@ export class Property {
   providerId: string;
 
   @Column()
+  title: string;
+
+  @Column()
+  url: string;
+
+  @Column()
   description: string;
 
   @Column()
