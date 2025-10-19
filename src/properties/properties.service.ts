@@ -10,8 +10,20 @@ export class PropertiesService {
     private propertyRepository: Repository<Property>,
   ) {}
 
-  getProperties() {
-    return this.propertyRepository.find();
+  async getProperties(page: number, limit: number) {
+    const [data, total] = await this.propertyRepository.findAndCount({
+      skip: (page - 1) * limit,
+      take: limit,
+      order: { id: 'DESC' }
+    });
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   createProperty(property: Property): Promise<Property> {
