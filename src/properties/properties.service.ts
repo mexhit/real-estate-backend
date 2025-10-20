@@ -3,6 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Property } from './property.entity';
 
+interface PropertyFilters {
+  providerId?: string;
+}
+
 @Injectable()
 export class PropertiesService {
   constructor(
@@ -10,11 +14,20 @@ export class PropertiesService {
     private propertyRepository: Repository<Property>,
   ) {}
 
-  async getProperties(page: number, limit: number) {
+  async getProperties(
+    page: number,
+    limit: number,
+    filters: PropertyFilters = {},
+  ) {
+    const { providerId } = filters;
+
+    const whereCondition = providerId ? { providerId } : {};
+
     const [data, total] = await this.propertyRepository.findAndCount({
       skip: (page - 1) * limit,
       take: limit,
-      order: { id: 'DESC' }
+      order: { id: 'DESC' },
+      where: whereCondition,
     });
 
     return {

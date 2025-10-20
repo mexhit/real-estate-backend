@@ -10,12 +10,14 @@ export class PropertiesController {
   async getProperties(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
+    @Query('providerId') providerId?: string,
   ) {
     // Ensure positive integers
     page = Math.max(1, Number(page));
     limit = Math.min(Math.max(1, Number(limit)), 100); // cap at 100 for safety
+    const filters = { providerId };
 
-    return this.propertiesService.getProperties(page, limit);
+    return this.propertiesService.getProperties(page, limit, filters);
   }
 
   @Post()
