@@ -26,6 +26,9 @@ export class Property {
   @Column()
   price: string;
 
+  @Column({ default: false })
+  seen: boolean;
+
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 

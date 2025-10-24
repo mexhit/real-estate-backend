@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Property } from './property.entity';
+import { In } from 'typeorm';
 
 @Injectable()
 export class PropertiesService {
@@ -56,6 +57,8 @@ export class PropertiesService {
       providerPropertyCount: Number(entity.provider_property_count || 0),
     }));
 
+    await this.markPropertiesAsSeen(enrichedData.map((p) => p.id));
+
     return {
       data: enrichedData,
       total: Number(total),
@@ -90,5 +93,11 @@ export class PropertiesService {
 
   createProperty(property: Property): Promise<Property> {
     return this.propertyRepository.save(property);
+  }
+
+  async markPropertiesAsSeen(ids: number[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
+
+    await this.propertyRepository.update({ id: In(ids) }, { seen: true });
   }
 }
