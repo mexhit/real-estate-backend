@@ -21,7 +21,13 @@ export class PropertiesService {
         SELECT
           property.*,
           COUNT(*) OVER (PARTITION BY property."providerId") as provider_property_count,
-          ROW_NUMBER() OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as rn
+          ROW_NUMBER() OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as rn,
+          CASE
+            WHEN COUNT(*) OVER (PARTITION BY property."providerId") = 1 THEN false
+            WHEN LEAD(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) IS DISTINCT FROM property.price
+            THEN true
+            ELSE false
+          END as has_price_changed  
         FROM property
                ${whereSql}
       )
@@ -38,8 +44,15 @@ export class PropertiesService {
     const countQuery = `
       WITH ranked_properties AS (
         SELECT
-          property.id,
-          ROW_NUMBER() OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as rn
+          property.*,
+          COUNT(*) OVER (PARTITION BY property."providerId") as provider_property_count,
+          ROW_NUMBER() OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as rn,
+          CASE
+            WHEN COUNT(*) OVER (PARTITION BY property."providerId") = 1 THEN false
+            WHEN LEAD(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) IS DISTINCT FROM property.price
+            THEN true
+            ELSE false
+          END as has_price_changed  
         FROM property
                ${whereSql}
       )
@@ -55,6 +68,7 @@ export class PropertiesService {
     const enrichedData = data.map((entity) => ({
       ...entity,
       providerPropertyCount: Number(entity.provider_property_count || 0),
+      hasPriceChanged: entity.has_price_changed,
     }));
 
     await this.markPropertiesAsSeen(enrichedData.map((p) => p.id));
