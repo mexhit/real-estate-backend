@@ -4,6 +4,11 @@ import { Repository } from 'typeorm';
 import { Property } from './property.entity';
 import { In } from 'typeorm';
 
+type PropertyFilters = {
+  fromDate?: Date;
+  toDate?: Date;
+};
+
 @Injectable()
 export class PropertiesService {
   constructor(
@@ -11,10 +16,25 @@ export class PropertiesService {
     private propertyRepository: Repository<Property>,
   ) {}
 
-  async getProperties(page: number, limit: number) {
-    const whereSql = '';
-    const params: any[] = [];
-    const paramIndex = 1;
+  async getProperties(page: number, limit: number, filters?: PropertyFilters) {
+    const conditions: string[] = [];
+    const whereParams: any[] = [];
+    let paramIndex = 1;
+
+    if (filters.fromDate) {
+      conditions.push(`property."createdAt" >= $${paramIndex}`);
+      whereParams.push(filters.fromDate);
+      paramIndex++;
+    }
+
+    if (filters.toDate) {
+      conditions.push(`property."createdAt" <= $${paramIndex}`);
+      whereParams.push(filters.toDate);
+      paramIndex++;
+    }
+
+    const whereSql =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const query = `
       WITH ranked_properties AS (
@@ -39,7 +59,7 @@ export class PropertiesService {
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
-    params.push(limit, (page - 1) * limit);
+    const queryParams = [...whereParams, limit, (page - 1) * limit];
 
     const countQuery = `
       WITH ranked_properties AS (
@@ -54,16 +74,19 @@ export class PropertiesService {
             ELSE false
           END as has_price_changed  
         FROM property
-               ${whereSql}
+        ${whereSql}
       )
       SELECT COUNT(*) as total
       FROM ranked_properties
       WHERE rn = 1
     `;
 
-    const data = await this.propertyRepository.query(query, params);
+    const data = await this.propertyRepository.query(query, queryParams);
 
-    const [{ total }] = await this.propertyRepository.query(countQuery);
+    const [{ total }] = await this.propertyRepository.query(
+      countQuery,
+      whereParams,
+    );
 
     const enrichedData = data.map((entity) => ({
       ...entity,

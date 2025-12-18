@@ -10,12 +10,19 @@ export class PropertiesController {
   async getProperties(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
+    @Query('fromDate') fromDate: string,
+    @Query('toDate') toDate: string,
   ) {
     // Ensure positive integers
     page = Math.max(1, Number(page));
     limit = Math.min(Math.max(1, Number(limit)), 100); // cap at 100 for safety
+    const fromDateObj = fromDate ? new Date(Number(fromDate)) : undefined;
+    const toDateObj = toDate ? new Date(Number(toDate)) : undefined;
 
-    return this.propertiesService.getProperties(page, limit);
+    return this.propertiesService.getProperties(page, limit, {
+      fromDate: fromDateObj,
+      toDate: toDateObj,
+    });
   }
 
   @Get('provider/:providerId')
