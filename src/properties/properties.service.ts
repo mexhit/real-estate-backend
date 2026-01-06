@@ -132,6 +132,10 @@ export class PropertiesService {
     return this.propertyRepository.save(property);
   }
 
+  bookmarkProperty(id: number, bookmarked: boolean = true) {
+    return this.propertyRepository.update({ id }, { bookmarked });
+  }
+
   async markPropertiesAsSeen(ids: number[]): Promise<void> {
     if (!ids || ids.length === 0) return;
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { PropertiesService } from './properties.service';
 import { Property } from './property.entity';
 
@@ -40,6 +40,16 @@ export class PropertiesController {
       limit,
       providerId,
     );
+  }
+
+  @Put(':id/bookmark/:bookmarked(true|false)')
+  bookmarkProperty(
+    @Param('id') id: number,
+    @Param('bookmarked') bookmarked: string,
+  ) {
+    const bookmarkedBool = bookmarked === 'true';
+
+    return this.propertiesService.bookmarkProperty(id, bookmarkedBool);
   }
 
   @Post()

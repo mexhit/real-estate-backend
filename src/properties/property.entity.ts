@@ -29,6 +29,9 @@ export class Property {
   @Column({ default: false })
   seen: boolean;
 
+  @Column({ default: false })
+  bookmarked: boolean;
+
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 
