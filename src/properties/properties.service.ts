@@ -47,14 +47,15 @@ export class PropertiesService {
             WHEN LEAD(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) IS DISTINCT FROM property.price
             THEN true
             ELSE false
-          END as has_price_changed  
+          END as has_price_changed,
+          MIN(property."createdAt") OVER (PARTITION BY property."providerId") as first_post,
+          MAX(property."createdAt") OVER (PARTITION BY property."providerId") as last_post   
         FROM property
                ${whereSql}
       )
       SELECT *
       FROM ranked_properties
       WHERE rn = 1
-      /*ORDER BY provider_property_count DESC, id DESC*/
         ORDER BY id DESC
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
@@ -92,6 +93,8 @@ export class PropertiesService {
       ...entity,
       providerPropertyCount: Number(entity.provider_property_count || 0),
       hasPriceChanged: entity.has_price_changed,
+      firstPostedAt: entity.first_post,
+      lastPostedAt: entity.last_post,
     }));
 
     await this.markPropertiesAsSeen(enrichedData.map((p) => p.id));
