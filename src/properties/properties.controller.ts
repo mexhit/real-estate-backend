@@ -12,16 +12,19 @@ export class PropertiesController {
     @Query('limit') limit: number = 10,
     @Query('fromDate') fromDate: string,
     @Query('toDate') toDate: string,
+    @Query('onlyUnseen') onlyUnseen: string,
   ) {
     // Ensure positive integers
     page = Math.max(1, Number(page));
     limit = Math.min(Math.max(1, Number(limit)), 100); // cap at 100 for safety
     const fromDateObj = fromDate ? new Date(Number(fromDate)) : undefined;
     const toDateObj = toDate ? new Date(Number(toDate)) : undefined;
+    const onlyUnseenBool = onlyUnseen === 'true';
 
     return this.propertiesService.getProperties(page, limit, {
       fromDate: fromDateObj,
       toDate: toDateObj,
+      onlyUnseen: onlyUnseenBool,
     });
   }
 

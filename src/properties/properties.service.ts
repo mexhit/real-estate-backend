@@ -7,6 +7,7 @@ import { In } from 'typeorm';
 type PropertyFilters = {
   fromDate?: Date;
   toDate?: Date;
+  onlyUnseen?: boolean;
 };
 
 @Injectable()
@@ -22,19 +23,25 @@ export class PropertiesService {
     let paramIndex = 1;
 
     if (filters.fromDate) {
-      conditions.push(`property."createdAt" >= $${paramIndex}`);
+      conditions.push(`ranked_properties."createdAt" >= $${paramIndex}`);
       whereParams.push(filters.fromDate);
       paramIndex++;
     }
 
     if (filters.toDate) {
-      conditions.push(`property."createdAt" <= $${paramIndex}`);
+      conditions.push(`ranked_properties."createdAt" <= $${paramIndex}`);
       whereParams.push(filters.toDate);
       paramIndex++;
     }
 
+    if (filters.onlyUnseen) {
+      conditions.push(`ranked_properties."seen" = $${paramIndex}`);
+      whereParams.push(false);
+      paramIndex++;
+    }
+
     const whereSql =
-      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
 
     const query = `
       WITH ranked_properties AS (
@@ -51,11 +58,10 @@ export class PropertiesService {
           MIN(property."createdAt") OVER (PARTITION BY property."providerId") as first_post,
           MAX(property."createdAt") OVER (PARTITION BY property."providerId") as last_post   
         FROM property
-               ${whereSql}
       )
       SELECT *
       FROM ranked_properties
-      WHERE rn = 1
+      WHERE rn = 1 ${whereSql} 
         ORDER BY id DESC
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
@@ -75,11 +81,10 @@ export class PropertiesService {
             ELSE false
           END as has_price_changed  
         FROM property
-        ${whereSql}
       )
       SELECT COUNT(*) as total
       FROM ranked_properties
-      WHERE rn = 1
+      WHERE rn = 1 ${whereSql}
     `;
 
     const data = await this.propertyRepository.query(query, queryParams);
