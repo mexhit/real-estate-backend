@@ -8,6 +8,7 @@ type PropertyFilters = {
   fromDate?: Date;
   toDate?: Date;
   onlyUnseen?: boolean;
+  onlyBookmarked?: boolean;
 };
 
 @Injectable()
@@ -37,6 +38,12 @@ export class PropertiesService {
     if (filters.onlyUnseen) {
       conditions.push(`ranked_properties."seen" = $${paramIndex}`);
       whereParams.push(false);
+      paramIndex++;
+    }
+
+    if (filters.onlyBookmarked) {
+      conditions.push(`ranked_properties."bookmarked" = $${paramIndex}`);
+      whereParams.push(true);
       paramIndex++;
     }
 
