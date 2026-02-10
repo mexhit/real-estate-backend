@@ -9,6 +9,7 @@ type PropertyFilters = {
   toDate?: Date;
   onlyUnseen?: boolean;
   onlyBookmarked?: boolean;
+  onlyPriceChanged?: boolean;
 };
 
 @Injectable()
@@ -43,6 +44,12 @@ export class PropertiesService {
 
     if (filters.onlyBookmarked) {
       conditions.push(`ranked_properties."bookmarked" = $${paramIndex}`);
+      whereParams.push(true);
+      paramIndex++;
+    }
+
+    if (filters.onlyPriceChanged) {
+      conditions.push(`ranked_properties."has_price_changed" = $${paramIndex}`);
       whereParams.push(true);
       paramIndex++;
     }

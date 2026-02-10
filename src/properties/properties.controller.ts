@@ -14,6 +14,7 @@ export class PropertiesController {
     @Query('toDate') toDate: string,
     @Query('onlyUnseen') onlyUnseen: string,
     @Query('onlyBookmarked') onlyBookmarked: string,
+    @Query('onlyPriceChanged') onlyPriceChanged: string,
   ) {
     // Ensure positive integers
     page = Math.max(1, Number(page));
@@ -22,12 +23,14 @@ export class PropertiesController {
     const toDateObj = toDate ? new Date(Number(toDate)) : undefined;
     const onlyUnseenBool = onlyUnseen === 'true';
     const onlyBookmarkedBool = onlyBookmarked === 'true';
+    const onlyPriceChangedBool = onlyPriceChanged === 'true';
 
     return this.propertiesService.getProperties(page, limit, {
       fromDate: fromDateObj,
       toDate: toDateObj,
       onlyUnseen: onlyUnseenBool,
       onlyBookmarked: onlyBookmarkedBool,
+      onlyPriceChanged: onlyPriceChangedBool,
     });
   }
 
