@@ -108,9 +108,9 @@ export class PropertiesService {
          FROM property
                 LEFT JOIN price_change_check pcc ON pcc."providerId" = property."providerId"
        )
-      SELECT *
-      FROM ranked_properties
-      WHERE rn = 1 ${whereSql}
+        SELECT COUNT(*) as total
+        FROM ranked_properties
+        WHERE rn = 1 ${whereSql}
     `;
 
     const data = await this.propertyRepository.query(query, queryParams);
