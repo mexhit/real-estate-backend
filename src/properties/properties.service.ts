@@ -58,49 +58,59 @@ export class PropertiesService {
       conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
 
     const query = `
-        WITH ranked_properties AS (
-            SELECT
-                property.*,
-                COUNT(*) OVER (PARTITION BY property."providerId") as provider_property_count,
-                ROW_NUMBER() OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as rn,
-                CASE
-                    WHEN COUNT(*) OVER (PARTITION BY property."providerId") = 1 THEN false
-                    WHEN LEAD(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) IS DISTINCT FROM property.price
-            THEN true
-            ELSE false
-        END as has_price_changed,
-        MIN(property."createdAt") OVER (PARTITION BY property."providerId") as first_post,
-        MAX(property."createdAt") OVER (PARTITION BY property."providerId") as last_post,
-        FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id ASC) as first_price,
-        FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as last_price
-      FROM property
-    )
-        SELECT *
-        FROM ranked_properties
-        WHERE rn = 1 ${whereSql}
-        ORDER BY id DESC
-            LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      WITH price_change_check AS (
+        SELECT
+          property."providerId",
+          COUNT(DISTINCT property.price) > 1 as has_price_changed
+        FROM property
+        GROUP BY property."providerId"
+      ),
+     ranked_properties AS (
+       SELECT
+         property.*,
+         COUNT(*) OVER (PARTITION BY property."providerId") as provider_property_count,
+         ROW_NUMBER() OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as rn,
+         pcc.has_price_changed,
+         MIN(property."createdAt") OVER (PARTITION BY property."providerId") as first_post,
+         MAX(property."createdAt") OVER (PARTITION BY property."providerId") as last_post,
+         FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id ASC) as first_price,
+         FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as last_price
+       FROM property
+              LEFT JOIN price_change_check pcc ON pcc."providerId" = property."providerId"
+     )
+      SELECT *
+      FROM ranked_properties
+      WHERE rn = 1 ${whereSql}
+      ORDER BY id DESC
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
     const queryParams = [...whereParams, limit, (page - 1) * limit];
 
     const countQuery = `
-        WITH ranked_properties AS (
-            SELECT
-                property.*,
-                COUNT(*) OVER (PARTITION BY property."providerId") as provider_property_count,
-                ROW_NUMBER() OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as rn,
-                CASE
-                    WHEN COUNT(*) OVER (PARTITION BY property."providerId") = 1 THEN false
-                    WHEN LEAD(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) IS DISTINCT FROM property.price
-            THEN true
-            ELSE false
-        END as has_price_changed  
-      FROM property
-    )
-        SELECT COUNT(*) as total
-        FROM ranked_properties
-        WHERE rn = 1 ${whereSql}
+      WITH price_change_check AS (
+        SELECT
+          property."providerId",
+          COUNT(DISTINCT property.price) > 1 as has_price_changed
+        FROM property
+        GROUP BY property."providerId"
+      ),
+       ranked_properties AS (
+         SELECT
+           property.*,
+           COUNT(*) OVER (PARTITION BY property."providerId") as provider_property_count,
+           ROW_NUMBER() OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as rn,
+           pcc.has_price_changed,
+           MIN(property."createdAt") OVER (PARTITION BY property."providerId") as first_post,
+           MAX(property."createdAt") OVER (PARTITION BY property."providerId") as last_post,
+           FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id ASC) as first_price,
+           FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as last_price
+         FROM property
+                LEFT JOIN price_change_check pcc ON pcc."providerId" = property."providerId"
+       )
+      SELECT *
+      FROM ranked_properties
+      WHERE rn = 1 ${whereSql}
     `;
 
     const data = await this.propertyRepository.query(query, queryParams);
