@@ -43,4 +43,8 @@ export class AuthService {
       user: this.usersService.toResponse(user),
     };
   }
+
+  logout() {
+    return { message: 'Logged out' };
+  }
 }

@@ -10,7 +10,11 @@ export class AuthController {
   @Post('login')
   @Public()
   login(@Body() loginDto: LoginDto) {
-    console.log('loginDto ---- ', loginDto);
     return this.authService.login(loginDto);
+  }
+
+  @Post('logout')
+  logout() {
+    return this.authService.logout();
   }
 }

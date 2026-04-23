@@ -82,4 +82,8 @@ describe('AuthService', () => {
       service.login({ email: user.email, password: 'wrong' }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
+
+  it('logs out', () => {
+    expect(service.logout()).toEqual({ message: 'Logged out' });
+  });
 });
