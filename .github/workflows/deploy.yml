@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Execute remote deploy commands
+      - name: Deploy app on Droplet
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DROPLET_HOST }}
@@ -21,23 +21,31 @@ jobs:
           script: |
             set -e
 
-            echo "📦 Navigating to app directory..."
+            echo "Loading Node/NVM..."
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+            echo "Go to app folder..."
             cd ${{ secrets.DROPLET_APP_PATH }}
 
-            echo "🔄 Pulling latest code..."
+            echo "Pull latest code..."
             git fetch --all
             git reset --hard origin/master
 
-            echo "📥 Installing dependencies..."
+            echo "Check versions..."
+            node -v
+            npm -v
+
+            echo "Install dependencies..."
             npm install
 
-            echo "🏗️ Building app (if needed)..."
+            echo "Build app if needed..."
             npm run build --if-present
 
-            echo "🚀 Restarting app with PM2..."
+            echo "Restart PM2..."
             pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
 
-            echo "💾 Saving PM2 process list..."
+            echo "Save PM2..."
             pm2 save
 
-            echo "✅ Deployment complete!"
+            echo "Deployment complete."
