@@ -7,6 +7,7 @@ async function bootstrap() {
   const allowedOrigins = new Set([
     'http://localhost:3010',
     'https://real-estate-analytics-z79u.vercel.app',
+    'https://real-estate-analytics-eight.vercel.app',
   ]);
 
   app.enableCors({
