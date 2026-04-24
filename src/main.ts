@@ -7,7 +7,10 @@ async function bootstrap() {
 
   // ✅ Enable CORS
   app.enableCors({
-    origin: 'http://localhost:3010', // your Next.js app
+    origin: [
+      'http://localhost:3010',
+      'https://real-estate-analytics-z79u.vercel.app',
+    ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
