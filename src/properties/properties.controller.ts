@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { PropertiesService } from './properties.service';
 import { Property } from './property.entity';
+import { AllowApiKey } from '../auth/api-key.decorator';
 
 @Controller('properties')
 export class PropertiesController {
@@ -62,6 +63,7 @@ export class PropertiesController {
   }
 
   @Post()
+  @AllowApiKey()
   createProperty(@Body() property: Property) {
     return this.propertiesService.createProperty(property);
   }
