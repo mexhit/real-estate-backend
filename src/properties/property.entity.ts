@@ -26,6 +26,15 @@ export class Property {
   @Column()
   price: string;
 
+  @Column({ type: 'integer', nullable: true })
+  priceAmount: number | null;
+
+  @Column({ nullable: true })
+  priceCurrency: string | null;
+
+  @Column({ type: 'integer', nullable: true })
+  squareMeters: number | null;
+
   @Column({ default: false })
   seen: boolean;
 

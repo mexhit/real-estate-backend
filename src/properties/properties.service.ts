@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Property } from './property.entity';
 import { In } from 'typeorm';
+import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
 
 type PropertyFilters = {
   fromDate?: Date;
@@ -17,6 +18,7 @@ export class PropertiesService {
   constructor(
     @InjectRepository(Property)
     private propertyRepository: Repository<Property>,
+    private readonly propertyMetadataExtractionService: PropertyMetadataExtractionService,
   ) {}
 
   async getProperties(page: number, limit: number, filters?: PropertyFilters) {
@@ -164,8 +166,16 @@ export class PropertiesService {
     };
   }
 
-  createProperty(property: Property): Promise<Property> {
-    return this.propertyRepository.save(property);
+  async createProperty(property: Property): Promise<Property> {
+    const extractedMetadata =
+      await this.propertyMetadataExtractionService.extract(property);
+
+    return this.propertyRepository.save({
+      ...property,
+      priceAmount: property.priceAmount ?? extractedMetadata.priceAmount,
+      priceCurrency: property.priceCurrency ?? extractedMetadata.priceCurrency,
+      squareMeters: property.squareMeters ?? extractedMetadata.squareMeters,
+    });
   }
 
   bookmarkProperty(id: number, bookmarked: boolean = true) {
