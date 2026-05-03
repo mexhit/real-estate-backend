@@ -66,7 +66,7 @@ describe('PropertyMetadataExtractionService', () => {
     });
   });
 
-  it('rejects decimal values for integer-only fields', async () => {
+  it('rounds decimal square meters from the provider response', async () => {
     aiProvider.generateText.mockResolvedValue(
       '{"priceAmount":120000.5,"priceCurrency":"EUR","squareMeters":85.2}',
     );
@@ -81,7 +81,27 @@ describe('PropertyMetadataExtractionService', () => {
     expect(result).toEqual({
       priceAmount: null,
       priceCurrency: 'EUR',
-      squareMeters: null,
+      squareMeters: 85,
+    });
+  });
+
+  it('extracts square meters from Albanian listing text when the provider misses it', async () => {
+    aiProvider.generateText.mockResolvedValue(
+      '{"priceAmount":208000,"priceCurrency":"EUR","squareMeters":null}',
+    );
+
+    const result = await service.extract({
+      title: 'Shitet super Apartament 2+1',
+      description:
+        'Shitet super Apartament 2+1 tek Residenca Manhattan 1, tek unaza e vogel kryqezimi i Don Boskos. 📐Siperfaqe totale 122.05 m2 prej te cilave 98 m2 neto. Apartamenti ndodhet ne katin 14 me orientim Lindje dhe Jug, plot drite dhe diell. Super Pamje 💥Cmimi OKAZION 1.700 €/m² 💥Total 208.000 €💥',
+      price: '208000 EUR',
+      url: 'https://example.com/property/4',
+    });
+
+    expect(result).toEqual({
+      priceAmount: 208000,
+      priceCurrency: 'EUR',
+      squareMeters: 122,
     });
   });
 });
