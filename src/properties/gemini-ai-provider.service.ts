@@ -10,6 +10,8 @@ export class GeminiAiProviderService implements AiProvider {
   private readonly logger = new Logger(GeminiAiProviderService.name);
   private readonly model: string;
   private readonly apiKey: string | null;
+  private readonly maxRetries: number;
+  private readonly retryDelayMs: number;
   private client: GoogleGenAiClient | null = null;
   private clientPromise: Promise<GoogleGenAiClient | null> | null = null;
 
@@ -17,7 +19,15 @@ export class GeminiAiProviderService implements AiProvider {
     this.apiKey = this.configService.get<string>('GEMINI_API_KEY') ?? null;
     this.model = this.configService.get<string>(
       'GEMINI_MODEL',
-      'gemini-2.0-flash',
+      'gemini-2.0-flash-lite',
+    );
+    this.maxRetries = Math.max(
+      0,
+      Number(this.configService.get<string>('GEMINI_MAX_RETRIES', '2')),
+    );
+    this.retryDelayMs = Math.max(
+      0,
+      Number(this.configService.get<string>('GEMINI_RETRY_DELAY_MS', '1000')),
     );
   }
 
@@ -31,22 +41,35 @@ export class GeminiAiProviderService implements AiProvider {
       return null;
     }
 
-    try {
-      const response = await client.models.generateContent({
-        model: this.model,
-        contents: prompt,
-        config: {
-          responseMimeType: options?.responseMimeType,
-        },
-      });
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        const response = await client.models.generateContent({
+          model: this.model,
+          contents: prompt,
+          config: {
+            responseMimeType: options?.responseMimeType,
+          },
+        });
 
-      return response.text?.trim() ?? null;
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown provider error';
-      this.logger.warn(`AI provider request failed: ${message}`);
-      return null;
+        return response.text?.trim() ?? null;
+      } catch (error) {
+        if (this.isRateLimitError(error) && attempt < this.maxRetries) {
+          const delayMs = this.retryDelayMs * Math.pow(2, attempt);
+          this.logger.warn(
+            `Gemini rate limited (429). Retrying in ${delayMs}ms (${attempt + 1}/${this.maxRetries})`,
+          );
+          await this.sleep(delayMs);
+          continue;
+        }
+
+        const message =
+          error instanceof Error ? error.message : 'Unknown provider error';
+        this.logger.warn(`AI provider request failed: ${message}`);
+        return null;
+      }
     }
+
+    return null;
   }
 
   private async getClient(): Promise<GoogleGenAiClient | null> {
@@ -82,5 +105,30 @@ export class GeminiAiProviderService implements AiProvider {
       this.clientPromise = null;
       return null;
     }
+  }
+
+  private isRateLimitError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const candidate = error as {
+      status?: unknown;
+      statusCode?: unknown;
+      code?: unknown;
+      message?: unknown;
+    };
+
+    return (
+      candidate.status === 429 ||
+      candidate.statusCode === 429 ||
+      candidate.code === 429 ||
+      (typeof candidate.message === 'string' &&
+        candidate.message.includes('429'))
+    );
+  }
+
+  private sleep(delayMs: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 }
