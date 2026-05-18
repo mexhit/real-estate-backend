@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { PropertiesService } from './properties.service';
-import { Property } from './property.entity';
+import { normalizePropertyType, Property } from './property.entity';
 import { AllowApiKey } from '../auth/api-key.decorator';
 
 @Controller('properties')
@@ -16,6 +16,7 @@ export class PropertiesController {
     @Query('onlyUnseen') onlyUnseen: string,
     @Query('onlyBookmarked') onlyBookmarked: string,
     @Query('onlyPriceChanged') onlyPriceChanged: string,
+    @Query('propertyType') propertyType: string,
   ) {
     // Ensure positive integers
     page = Math.max(1, Number(page));
@@ -25,6 +26,7 @@ export class PropertiesController {
     const onlyUnseenBool = onlyUnseen === 'true';
     const onlyBookmarkedBool = onlyBookmarked === 'true';
     const onlyPriceChangedBool = onlyPriceChanged === 'true';
+    const propertyTypeFilter = normalizePropertyType(propertyType) ?? undefined;
 
     return this.propertiesService.getProperties(page, limit, {
       fromDate: fromDateObj,
@@ -32,6 +34,7 @@ export class PropertiesController {
       onlyUnseen: onlyUnseenBool,
       onlyBookmarked: onlyBookmarkedBool,
       onlyPriceChanged: onlyPriceChangedBool,
+      propertyType: propertyTypeFilter,
     });
   }
 

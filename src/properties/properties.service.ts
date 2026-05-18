@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Property } from './property.entity';
+import {
+  normalizePropertyType,
+  Property,
+  PropertyType,
+} from './property.entity';
 import { In } from 'typeorm';
 import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
 
@@ -11,6 +15,7 @@ type PropertyFilters = {
   onlyUnseen?: boolean;
   onlyBookmarked?: boolean;
   onlyPriceChanged?: boolean;
+  propertyType?: PropertyType;
 };
 
 @Injectable()
@@ -53,6 +58,12 @@ export class PropertiesService {
     if (filters.onlyPriceChanged) {
       conditions.push(`ranked_properties."has_price_changed" = $${paramIndex}`);
       whereParams.push(true);
+      paramIndex++;
+    }
+
+    if (filters.propertyType) {
+      conditions.push(`ranked_properties."propertyType" = $${paramIndex}`);
+      whereParams.push(filters.propertyType);
       paramIndex++;
     }
 
@@ -169,13 +180,14 @@ export class PropertiesService {
   async createProperty(property: Property): Promise<Property> {
     const extractedMetadata =
       await this.propertyMetadataExtractionService.extract(property);
+    const normalizedPropertyType = normalizePropertyType(property.propertyType);
 
     return this.propertyRepository.save({
       ...property,
       priceAmount: property.priceAmount ?? extractedMetadata.priceAmount,
       priceCurrency: property.priceCurrency ?? extractedMetadata.priceCurrency,
       squareMeters: property.squareMeters ?? extractedMetadata.squareMeters,
-      propertyType: property.propertyType ?? extractedMetadata.propertyType,
+      propertyType: normalizedPropertyType ?? extractedMetadata.propertyType,
     });
   }
 

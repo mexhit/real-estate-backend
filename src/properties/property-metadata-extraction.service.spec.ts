@@ -28,7 +28,7 @@ describe('PropertyMetadataExtractionService', () => {
 
   it('extracts normalized property metadata from the AI provider output', async () => {
     aiProvider.generateText.mockResolvedValue(
-      '{"priceAmount":120000,"priceCurrency":"eur","squareMeters":85,"propertyType":"Apartament 2+1"}',
+      '{"priceAmount":120000,"priceCurrency":"eur","squareMeters":85,"propertyType":"APARTMENT_2_1"}',
     );
 
     const result = await service.extract({
@@ -46,7 +46,7 @@ describe('PropertyMetadataExtractionService', () => {
       priceAmount: 120000,
       priceCurrency: 'EUR',
       squareMeters: 85,
-      propertyType: 'Apartament 2+1',
+      propertyType: 'APARTMENT_2_1',
     });
   });
 
@@ -90,7 +90,7 @@ describe('PropertyMetadataExtractionService', () => {
 
   it('extracts square meters from Albanian listing text when the provider misses it', async () => {
     aiProvider.generateText.mockResolvedValue(
-      '{"priceAmount":208000,"priceCurrency":"EUR","squareMeters":null,"propertyType":"Apartament 2+1"}',
+      '{"priceAmount":208000,"priceCurrency":"EUR","squareMeters":null,"propertyType":"APARTMENT_2_1"}',
     );
 
     const result = await service.extract({
@@ -105,7 +105,7 @@ describe('PropertyMetadataExtractionService', () => {
       priceAmount: 208000,
       priceCurrency: 'EUR',
       squareMeters: 122,
-      propertyType: 'Apartament 2+1',
+      propertyType: 'APARTMENT_2_1',
     });
   });
 });

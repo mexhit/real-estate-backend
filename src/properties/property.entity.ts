@@ -7,19 +7,33 @@ import {
 } from 'typeorm';
 
 export const PROPERTY_TYPES = [
-  'Apartament 1+1',
-  'Apartament 2+1',
-  'Apartament 3+1',
-  'Garsoniere',
-  'Shtëpi private',
-  'Vilë',
-  'Zyra',
-  'Tokë',
-  'Parkim',
-  'Dyqan',
+  'APARTMENT_1_1',
+  'APARTMENT_2_1',
+  'APARTMENT_3_1',
+  'STUDIO',
+  'PRIVATE_HOUSE',
+  'VILLA',
+  'OFFICE',
+  'LAND',
+  'PARKING',
+  'SHOP',
 ] as const;
 
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
+
+export function normalizePropertyType(value: unknown): PropertyType | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  if (PROPERTY_TYPES.includes(trimmed as PropertyType)) {
+    return trimmed as PropertyType;
+  }
+
+  return null;
+}
 
 @Entity()
 export class Property {

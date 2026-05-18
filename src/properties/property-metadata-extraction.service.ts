@@ -1,5 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { PROPERTY_TYPES, Property, PropertyType } from './property.entity';
+import {
+  PROPERTY_TYPES,
+  Property,
+  PropertyType,
+  normalizePropertyType,
+} from './property.entity';
 import { AI_PROVIDER, AiProvider } from './ai-provider.interface';
 
 type ExtractedPropertyMetadata = {
@@ -142,13 +147,7 @@ export class PropertyMetadataExtractionService {
   }
 
   private toPropertyTypeOrNull(value: unknown): PropertyType | null {
-    if (typeof value !== 'string') {
-      return null;
-    }
-
-    return (
-      PROPERTY_TYPES.find((propertyType) => propertyType === value) ?? null
-    );
+    return normalizePropertyType(value);
   }
 
   private extractSquareMetersFromText(sourceText: string): number | null {

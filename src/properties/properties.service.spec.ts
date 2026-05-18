@@ -6,12 +6,18 @@ import { PropertyMetadataExtractionService } from './property-metadata-extractio
 
 describe('PropertiesService', () => {
   let service: PropertiesService;
-  let repository: { save: jest.Mock };
+  let repository: {
+    save: jest.Mock;
+    query: jest.Mock;
+    update: jest.Mock;
+  };
   let extractionService: { extract: jest.Mock };
 
   beforeEach(async () => {
     repository = {
       save: jest.fn(),
+      query: jest.fn(),
+      update: jest.fn(),
     };
     extractionService = {
       extract: jest.fn(),
@@ -51,7 +57,7 @@ describe('PropertiesService', () => {
       priceAmount: 120000,
       priceCurrency: 'EUR',
       squareMeters: 85,
-      propertyType: 'Apartament 2+1',
+      propertyType: 'APARTMENT_2_1',
     });
     repository.save.mockImplementation(async (payload) => payload);
 
@@ -63,13 +69,13 @@ describe('PropertiesService', () => {
       priceAmount: 120000,
       priceCurrency: 'EUR',
       squareMeters: 85,
-      propertyType: 'Apartament 2+1',
+      propertyType: 'APARTMENT_2_1',
     });
     expect(saved).toMatchObject({
       priceAmount: 120000,
       priceCurrency: 'EUR',
       squareMeters: 85,
-      propertyType: 'Apartament 2+1',
+      propertyType: 'APARTMENT_2_1',
     });
   });
 
@@ -83,14 +89,14 @@ describe('PropertiesService', () => {
       priceAmount: 95000,
       priceCurrency: 'EUR',
       squareMeters: 72,
-      propertyType: 'Vilë',
+      propertyType: 'VILLA',
     } as Property;
 
     extractionService.extract.mockResolvedValue({
       priceAmount: 120000,
       priceCurrency: 'USD',
       squareMeters: 85,
-      propertyType: 'Apartament 3+1',
+      propertyType: 'APARTMENT_3_1',
     });
     repository.save.mockImplementation(async (payload) => payload);
 
@@ -101,7 +107,29 @@ describe('PropertiesService', () => {
       priceAmount: 95000,
       priceCurrency: 'EUR',
       squareMeters: 72,
-      propertyType: 'Vilë',
+      propertyType: 'VILLA',
     });
+  });
+
+  it('applies propertyType to the list query filters', async () => {
+    repository.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: '0' }]);
+    repository.update.mockResolvedValue({ affected: 0 });
+
+    await service.getProperties(1, 10, {
+      propertyType: 'SHOP',
+    });
+
+    expect(repository.query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('ranked_properties."propertyType" = $1'),
+      ['SHOP', 10, 0],
+    );
+    expect(repository.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('ranked_properties."propertyType" = $1'),
+      ['SHOP'],
+    );
   });
 });
