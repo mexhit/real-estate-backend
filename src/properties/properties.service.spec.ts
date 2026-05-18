@@ -111,25 +111,25 @@ describe('PropertiesService', () => {
     });
   });
 
-  it('applies propertyType to the list query filters', async () => {
+  it('applies propertyTypes to the list query filters', async () => {
     repository.query
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ total: '0' }]);
     repository.update.mockResolvedValue({ affected: 0 });
 
     await service.getProperties(1, 10, {
-      propertyType: 'SHOP',
+      propertyTypes: ['SHOP', 'VILLA'],
     });
 
     expect(repository.query).toHaveBeenNthCalledWith(
       1,
-      expect.stringContaining('ranked_properties."propertyType" = $1'),
-      ['SHOP', 10, 0],
+      expect.stringContaining('ranked_properties."propertyType" IN ($1, $2)'),
+      ['SHOP', 'VILLA', 10, 0],
     );
     expect(repository.query).toHaveBeenNthCalledWith(
       2,
-      expect.stringContaining('ranked_properties."propertyType" = $1'),
-      ['SHOP'],
+      expect.stringContaining('ranked_properties."propertyType" IN ($1, $2)'),
+      ['SHOP', 'VILLA'],
     );
   });
 });

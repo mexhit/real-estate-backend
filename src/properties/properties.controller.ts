@@ -16,7 +16,7 @@ export class PropertiesController {
     @Query('onlyUnseen') onlyUnseen: string,
     @Query('onlyBookmarked') onlyBookmarked: string,
     @Query('onlyPriceChanged') onlyPriceChanged: string,
-    @Query('propertyType') propertyType: string,
+    @Query('propertyTypes') propertyTypes: string | string[],
   ) {
     // Ensure positive integers
     page = Math.max(1, Number(page));
@@ -26,7 +26,14 @@ export class PropertiesController {
     const onlyUnseenBool = onlyUnseen === 'true';
     const onlyBookmarkedBool = onlyBookmarked === 'true';
     const onlyPriceChangedBool = onlyPriceChanged === 'true';
-    const propertyTypeFilter = normalizePropertyType(propertyType) ?? undefined;
+    const normalizedPropertyTypes = (
+      Array.isArray(propertyTypes) ? propertyTypes : [propertyTypes]
+    )
+      .map((value) => normalizePropertyType(value))
+      .filter((value): value is NonNullable<typeof value> => value !== null);
+
+    const propertyTypesFilter =
+      normalizedPropertyTypes.length > 0 ? normalizedPropertyTypes : undefined;
 
     return this.propertiesService.getProperties(page, limit, {
       fromDate: fromDateObj,
@@ -34,7 +41,7 @@ export class PropertiesController {
       onlyUnseen: onlyUnseenBool,
       onlyBookmarked: onlyBookmarkedBool,
       onlyPriceChanged: onlyPriceChangedBool,
-      propertyType: propertyTypeFilter,
+      propertyTypes: propertyTypesFilter,
     });
   }
 

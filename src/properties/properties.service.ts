@@ -15,7 +15,7 @@ type PropertyFilters = {
   onlyUnseen?: boolean;
   onlyBookmarked?: boolean;
   onlyPriceChanged?: boolean;
-  propertyType?: PropertyType;
+  propertyTypes?: PropertyType[];
 };
 
 @Injectable()
@@ -61,10 +61,12 @@ export class PropertiesService {
       paramIndex++;
     }
 
-    if (filters.propertyType) {
-      conditions.push(`ranked_properties."propertyType" = $${paramIndex}`);
-      whereParams.push(filters.propertyType);
-      paramIndex++;
+    if (filters.propertyTypes && filters.propertyTypes.length > 0) {
+      const placeholders = filters.propertyTypes.map(() => `$${paramIndex++}`);
+      conditions.push(
+        `ranked_properties."propertyType" IN (${placeholders.join(', ')})`,
+      );
+      whereParams.push(...filters.propertyTypes);
     }
 
     const whereSql =
