@@ -6,6 +6,21 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+export const PROPERTY_TYPES = [
+  'Apartament 1+1',
+  'Apartament 2+1',
+  'Apartament 3+1',
+  'Garsoniere',
+  'Shtëpi private',
+  'Vilë',
+  'Zyra',
+  'Tokë',
+  'Parkim',
+  'Dyqan',
+] as const;
+
+export type PropertyType = (typeof PROPERTY_TYPES)[number];
+
 @Entity()
 export class Property {
   @PrimaryGeneratedColumn()
@@ -34,6 +49,9 @@ export class Property {
 
   @Column({ type: 'integer', nullable: true })
   squareMeters: number | null;
+
+  @Column({ nullable: true })
+  propertyType: PropertyType | null;
 
   @Column({ default: false })
   seen: boolean;

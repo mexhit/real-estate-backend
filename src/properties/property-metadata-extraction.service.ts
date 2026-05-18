@@ -1,11 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Property } from './property.entity';
+import { PROPERTY_TYPES, Property, PropertyType } from './property.entity';
 import { AI_PROVIDER, AiProvider } from './ai-provider.interface';
 
 type ExtractedPropertyMetadata = {
   priceAmount: number | null;
   priceCurrency: string | null;
   squareMeters: number | null;
+  propertyType: PropertyType | null;
 };
 
 @Injectable()
@@ -39,12 +40,13 @@ export class PropertyMetadataExtractionService {
     return [
       'Extract normalized real-estate data from the listing below.',
       'Return JSON only, with this exact shape:',
-      '{"priceAmount": number | null, "priceCurrency": string | null, "squareMeters": number | null}',
+      '{"priceAmount": number | null, "priceCurrency": string | null, "squareMeters": number | null, "propertyType": string | null}',
       'Rules:',
       '- priceAmount must be an integer, without currency symbols or thousands separators.',
       '- priceCurrency should be a 3-letter ISO code when confidently inferable, otherwise null.',
       '- squareMeters may be decimal in the source, but return it as the nearest integer number of square meters.',
       '- If both total and net area are present, prefer total area.',
+      `- propertyType must be exactly one of: ${PROPERTY_TYPES.join(', ')}.`,
       '- Use null when a value cannot be determined confidently.',
       '',
       `Title: ${property.title ?? ''}`,
@@ -89,6 +91,7 @@ export class PropertyMetadataExtractionService {
         squareMeters:
           this.toRoundedPositiveIntegerOrNull(parsed.squareMeters) ??
           this.extractSquareMetersFromText(sourceText),
+        propertyType: this.toPropertyTypeOrNull(parsed.propertyType),
       };
     } catch {
       return {
@@ -134,7 +137,18 @@ export class PropertyMetadataExtractionService {
       priceAmount: null,
       priceCurrency: null,
       squareMeters: null,
+      propertyType: null,
     };
+  }
+
+  private toPropertyTypeOrNull(value: unknown): PropertyType | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+
+    return (
+      PROPERTY_TYPES.find((propertyType) => propertyType === value) ?? null
+    );
   }
 
   private extractSquareMetersFromText(sourceText: string): number | null {

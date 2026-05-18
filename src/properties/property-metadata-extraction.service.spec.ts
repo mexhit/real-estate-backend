@@ -28,7 +28,7 @@ describe('PropertyMetadataExtractionService', () => {
 
   it('extracts normalized property metadata from the AI provider output', async () => {
     aiProvider.generateText.mockResolvedValue(
-      '{"priceAmount":120000,"priceCurrency":"eur","squareMeters":85}',
+      '{"priceAmount":120000,"priceCurrency":"eur","squareMeters":85,"propertyType":"Apartament 2+1"}',
     );
 
     const result = await service.extract({
@@ -46,6 +46,7 @@ describe('PropertyMetadataExtractionService', () => {
       priceAmount: 120000,
       priceCurrency: 'EUR',
       squareMeters: 85,
+      propertyType: 'Apartament 2+1',
     });
   });
 
@@ -63,12 +64,13 @@ describe('PropertyMetadataExtractionService', () => {
       priceAmount: null,
       priceCurrency: null,
       squareMeters: null,
+      propertyType: null,
     });
   });
 
   it('rounds decimal square meters from the provider response', async () => {
     aiProvider.generateText.mockResolvedValue(
-      '{"priceAmount":120000.5,"priceCurrency":"EUR","squareMeters":85.2}',
+      '{"priceAmount":120000.5,"priceCurrency":"EUR","squareMeters":85.2,"propertyType":"Invalid"}',
     );
 
     const result = await service.extract({
@@ -82,12 +84,13 @@ describe('PropertyMetadataExtractionService', () => {
       priceAmount: null,
       priceCurrency: 'EUR',
       squareMeters: 85,
+      propertyType: null,
     });
   });
 
   it('extracts square meters from Albanian listing text when the provider misses it', async () => {
     aiProvider.generateText.mockResolvedValue(
-      '{"priceAmount":208000,"priceCurrency":"EUR","squareMeters":null}',
+      '{"priceAmount":208000,"priceCurrency":"EUR","squareMeters":null,"propertyType":"Apartament 2+1"}',
     );
 
     const result = await service.extract({
@@ -102,6 +105,7 @@ describe('PropertyMetadataExtractionService', () => {
       priceAmount: 208000,
       priceCurrency: 'EUR',
       squareMeters: 122,
+      propertyType: 'Apartament 2+1',
     });
   });
 });

@@ -175,6 +175,7 @@ export class PropertiesService {
       priceAmount: property.priceAmount ?? extractedMetadata.priceAmount,
       priceCurrency: property.priceCurrency ?? extractedMetadata.priceCurrency,
       squareMeters: property.squareMeters ?? extractedMetadata.squareMeters,
+      propertyType: property.propertyType ?? extractedMetadata.propertyType,
     });
   }
 

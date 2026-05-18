@@ -51,6 +51,7 @@ describe('PropertiesService', () => {
       priceAmount: 120000,
       priceCurrency: 'EUR',
       squareMeters: 85,
+      propertyType: 'Apartament 2+1',
     });
     repository.save.mockImplementation(async (payload) => payload);
 
@@ -62,11 +63,13 @@ describe('PropertiesService', () => {
       priceAmount: 120000,
       priceCurrency: 'EUR',
       squareMeters: 85,
+      propertyType: 'Apartament 2+1',
     });
     expect(saved).toMatchObject({
       priceAmount: 120000,
       priceCurrency: 'EUR',
       squareMeters: 85,
+      propertyType: 'Apartament 2+1',
     });
   });
 
@@ -80,12 +83,14 @@ describe('PropertiesService', () => {
       priceAmount: 95000,
       priceCurrency: 'EUR',
       squareMeters: 72,
+      propertyType: 'Vilë',
     } as Property;
 
     extractionService.extract.mockResolvedValue({
       priceAmount: 120000,
       priceCurrency: 'USD',
       squareMeters: 85,
+      propertyType: 'Apartament 3+1',
     });
     repository.save.mockImplementation(async (payload) => payload);
 
@@ -96,6 +101,7 @@ describe('PropertiesService', () => {
       priceAmount: 95000,
       priceCurrency: 'EUR',
       squareMeters: 72,
+      propertyType: 'Vilë',
     });
   });
 });
