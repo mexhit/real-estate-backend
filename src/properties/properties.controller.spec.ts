@@ -6,13 +6,13 @@ describe('PropertiesController', () => {
   let controller: PropertiesController;
   let propertiesService: {
     getProperties: jest.Mock;
-    createProperties: jest.Mock;
+    queueCreateProperties: jest.Mock;
   };
 
   beforeEach(async () => {
     propertiesService = {
       getProperties: jest.fn(),
-      createProperties: jest.fn(),
+      queueCreateProperties: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -122,7 +122,7 @@ describe('PropertiesController', () => {
     });
   });
 
-  it('passes bulk create payloads to the service', async () => {
+  it('acknowledges bulk create payloads and queues them for processing', async () => {
     const properties = [
       {
         providerId: 'provider-1',
@@ -140,10 +140,16 @@ describe('PropertiesController', () => {
       },
     ];
 
-    propertiesService.createProperties.mockResolvedValue(properties);
+    propertiesService.queueCreateProperties.mockReturnValue(undefined);
 
-    await controller.createProperties(properties as any);
+    const response = await controller.createProperties(properties as any);
 
-    expect(propertiesService.createProperties).toHaveBeenCalledWith(properties);
+    expect(propertiesService.queueCreateProperties).toHaveBeenCalledWith(
+      properties,
+    );
+    expect(response).toEqual({
+      accepted: true,
+      count: 2,
+    });
   });
 });

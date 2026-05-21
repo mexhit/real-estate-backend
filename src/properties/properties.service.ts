@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -20,6 +20,8 @@ type PropertyFilters = {
 
 @Injectable()
 export class PropertiesService {
+  private readonly logger = new Logger(PropertiesService.name);
+
   constructor(
     @InjectRepository(Property)
     private propertyRepository: Repository<Property>,
@@ -201,6 +203,18 @@ export class PropertiesService {
     }
 
     return createdProperties;
+  }
+
+  queueCreateProperties(properties: Property[]): void {
+    void this.createProperties(properties).catch((error: unknown) => {
+      const message =
+        error instanceof Error ? (error.stack ?? error.message) : String(error);
+
+      this.logger.error(
+        `Failed to process queued property batch of ${properties.length} items`,
+        message,
+      );
+    });
   }
 
   bookmarkProperty(id: number, bookmarked: boolean = true) {

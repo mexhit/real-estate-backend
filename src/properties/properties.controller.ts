@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { PropertiesService } from './properties.service';
 import { normalizePropertyType, Property } from './property.entity';
 import { AllowApiKey } from '../auth/api-key.decorator';
@@ -80,7 +90,13 @@ export class PropertiesController {
 
   @Post('bulk')
   @AllowApiKey()
+  @HttpCode(HttpStatus.ACCEPTED)
   createProperties(@Body() properties: Property[]) {
-    return this.propertiesService.createProperties(properties);
+    this.propertiesService.queueCreateProperties(properties);
+
+    return {
+      accepted: true,
+      count: properties.length,
+    };
   }
 }
