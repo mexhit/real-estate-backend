@@ -4,11 +4,15 @@ import { PropertiesService } from './properties.service';
 
 describe('PropertiesController', () => {
   let controller: PropertiesController;
-  let propertiesService: { getProperties: jest.Mock };
+  let propertiesService: {
+    getProperties: jest.Mock;
+    createProperties: jest.Mock;
+  };
 
   beforeEach(async () => {
     propertiesService = {
       getProperties: jest.fn(),
+      createProperties: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -116,5 +120,30 @@ describe('PropertiesController', () => {
       onlyPriceChanged: false,
       propertyTypes: undefined,
     });
+  });
+
+  it('passes bulk create payloads to the service', async () => {
+    const properties = [
+      {
+        providerId: 'provider-1',
+        title: 'Property 1',
+        url: 'https://example.com/property/1',
+        description: 'Description 1',
+        price: '100000 EUR',
+      },
+      {
+        providerId: 'provider-2',
+        title: 'Property 2',
+        url: 'https://example.com/property/2',
+        description: 'Description 2',
+        price: '200000 EUR',
+      },
+    ];
+
+    propertiesService.createProperties.mockResolvedValue(properties);
+
+    await controller.createProperties(properties as any);
+
+    expect(propertiesService.createProperties).toHaveBeenCalledWith(properties);
   });
 });

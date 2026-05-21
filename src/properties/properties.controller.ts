@@ -77,4 +77,10 @@ export class PropertiesController {
   createProperty(@Body() property: Property) {
     return this.propertiesService.createProperty(property);
   }
+
+  @Post('bulk')
+  @AllowApiKey()
+  createProperties(@Body() properties: Property[]) {
+    return this.propertiesService.createProperties(properties);
+  }
 }

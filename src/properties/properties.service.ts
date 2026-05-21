@@ -193,6 +193,16 @@ export class PropertiesService {
     });
   }
 
+  async createProperties(properties: Property[]): Promise<Property[]> {
+    const createdProperties: Property[] = [];
+
+    for (const property of properties) {
+      createdProperties.push(await this.createProperty(property));
+    }
+
+    return createdProperties;
+  }
+
   bookmarkProperty(id: number, bookmarked: boolean = true) {
     return this.propertyRepository.update({ id }, { bookmarked });
   }

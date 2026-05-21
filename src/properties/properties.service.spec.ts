@@ -111,6 +111,35 @@ describe('PropertiesService', () => {
     });
   });
 
+  it('creates properties one by one using createProperty', async () => {
+    const properties = [
+      {
+        providerId: 'provider-1',
+        title: 'Property 1',
+        url: 'https://example.com/property/1',
+        description: 'Description 1',
+        price: '100000 EUR',
+      },
+      {
+        providerId: 'provider-2',
+        title: 'Property 2',
+        url: 'https://example.com/property/2',
+        description: 'Description 2',
+        price: '200000 EUR',
+      },
+    ] as Property[];
+
+    const createPropertySpy = jest
+      .spyOn(service, 'createProperty')
+      .mockImplementation(async (property) => property);
+
+    const created = await service.createProperties(properties);
+
+    expect(createPropertySpy).toHaveBeenNthCalledWith(1, properties[0]);
+    expect(createPropertySpy).toHaveBeenNthCalledWith(2, properties[1]);
+    expect(created).toEqual(properties);
+  });
+
   it('applies propertyTypes to the list query filters', async () => {
     repository.query
       .mockResolvedValueOnce([])
