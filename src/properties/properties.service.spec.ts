@@ -70,12 +70,14 @@ describe('PropertiesService', () => {
       priceCurrency: 'EUR',
       squareMeters: 85,
       propertyType: 'APARTMENT_2_1',
+      aiResponseError: null,
     });
     expect(saved).toMatchObject({
       priceAmount: 120000,
       priceCurrency: 'EUR',
       squareMeters: 85,
       propertyType: 'APARTMENT_2_1',
+      aiResponseError: null,
     });
   });
 
@@ -102,12 +104,43 @@ describe('PropertiesService', () => {
 
     const saved = await service.createProperty(property);
 
-    expect(repository.save).toHaveBeenCalledWith(property);
+    expect(repository.save).toHaveBeenCalledWith({
+      ...property,
+      aiResponseError: null,
+    });
     expect(saved).toMatchObject({
       priceAmount: 95000,
       priceCurrency: 'EUR',
       squareMeters: 72,
       propertyType: 'VILLA',
+      aiResponseError: null,
+    });
+  });
+
+  it('saves the property and records the AI error when extraction fails', async () => {
+    const property = {
+      providerId: 'provider-3',
+      title: 'Apartment',
+      url: 'https://example.com/property/3',
+      description: 'Description',
+      price: '100000 EUR',
+    } as Property;
+
+    extractionService.extract.mockRejectedValue(new Error('AI timeout'));
+    repository.save.mockImplementation(async (payload) => payload);
+
+    const saved = await service.createProperty(property);
+
+    expect(repository.save).toHaveBeenCalledWith({
+      ...property,
+      priceAmount: null,
+      priceCurrency: null,
+      squareMeters: null,
+      propertyType: null,
+      aiResponseError: expect.stringContaining('AI timeout'),
+    });
+    expect(saved).toMatchObject({
+      aiResponseError: expect.stringContaining('AI timeout'),
     });
   });
 

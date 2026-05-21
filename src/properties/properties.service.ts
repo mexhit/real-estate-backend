@@ -182,16 +182,35 @@ export class PropertiesService {
   }
 
   async createProperty(property: Property): Promise<Property> {
-    const extractedMetadata =
-      await this.propertyMetadataExtractionService.extract(property);
+    let extractedMetadata: Awaited<
+      ReturnType<PropertyMetadataExtractionService['extract']>
+    > | null = null;
+    let aiResponseError: string | null = null;
+
+    try {
+      extractedMetadata =
+        await this.propertyMetadataExtractionService.extract(property);
+    } catch (error: unknown) {
+      aiResponseError = this.formatAiResponseError(error);
+      this.logger.warn(
+        `AI metadata extraction failed for providerId=${property.providerId}`,
+        aiResponseError,
+      );
+    }
+
     const normalizedPropertyType = normalizePropertyType(property.propertyType);
 
     return this.propertyRepository.save({
       ...property,
-      priceAmount: property.priceAmount ?? extractedMetadata.priceAmount,
-      priceCurrency: property.priceCurrency ?? extractedMetadata.priceCurrency,
-      squareMeters: property.squareMeters ?? extractedMetadata.squareMeters,
-      propertyType: normalizedPropertyType ?? extractedMetadata.propertyType,
+      priceAmount:
+        property.priceAmount ?? extractedMetadata?.priceAmount ?? null,
+      priceCurrency:
+        property.priceCurrency ?? extractedMetadata?.priceCurrency ?? null,
+      squareMeters:
+        property.squareMeters ?? extractedMetadata?.squareMeters ?? null,
+      propertyType:
+        normalizedPropertyType ?? extractedMetadata?.propertyType ?? null,
+      aiResponseError,
     });
   }
 
@@ -225,5 +244,13 @@ export class PropertiesService {
     if (!ids || ids.length === 0) return;
 
     await this.propertyRepository.update({ id: In(ids) }, { seen: true });
+  }
+
+  private formatAiResponseError(error: unknown): string {
+    if (error instanceof Error) {
+      return error.stack ?? error.message;
+    }
+
+    return String(error);
   }
 }

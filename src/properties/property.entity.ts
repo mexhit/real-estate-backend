@@ -67,6 +67,9 @@ export class Property {
   @Column({ nullable: true })
   propertyType: PropertyType | null;
 
+  @Column({ type: 'text', nullable: true })
+  aiResponseError: string | null;
+
   @Column({ default: false })
   seen: boolean;
 
