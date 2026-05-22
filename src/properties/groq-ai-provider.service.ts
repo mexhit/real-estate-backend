@@ -95,10 +95,7 @@ export class GroqAiProviderService implements AiProvider {
             continue;
           }
 
-          this.logger.warn(
-            `Groq request failed with status ${response.status}`,
-          );
-          return null;
+          throw new Error(`Groq request failed with status ${response.status}`);
         }
 
         const body =
@@ -107,6 +104,13 @@ export class GroqAiProviderService implements AiProvider {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Unknown provider error';
+
+        if (
+          error instanceof Error &&
+          /^Groq request failed with status \d+$/.test(error.message)
+        ) {
+          throw error;
+        }
 
         if (attempt < this.maxRetries) {
           const delayMs = this.retryDelayMs * Math.pow(2, attempt);
@@ -117,8 +121,7 @@ export class GroqAiProviderService implements AiProvider {
           continue;
         }
 
-        this.logger.warn(`AI provider request failed: ${message}`);
-        return null;
+        throw error;
       }
     }
 

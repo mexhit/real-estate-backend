@@ -60,4 +60,17 @@ describe('GroqAiProviderService', () => {
     await expect(service.generateText('prompt')).resolves.toBe('ok');
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
+
+  it('throws when Groq returns a non-retryable status', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+    }) as any;
+
+    const service = new GroqAiProviderService(createConfigService());
+
+    await expect(service.generateText('prompt')).rejects.toThrow(
+      'Groq request failed with status 400',
+    );
+  });
 });
