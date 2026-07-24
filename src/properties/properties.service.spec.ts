@@ -289,7 +289,7 @@ describe('PropertiesService', () => {
         { aiMetadataUpdatedAt: expect.any(Object) },
         { aiResponseError: expect.any(Object) },
       ],
-      order: { updatedAt: 'ASC' },
+      order: { updatedAt: 'DESC' },
       take: 10,
     });
   });

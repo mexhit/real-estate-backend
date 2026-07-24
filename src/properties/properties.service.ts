@@ -269,7 +269,7 @@ export class PropertiesService {
         { aiMetadataUpdatedAt: IsNull() },
         { aiResponseError: Not(IsNull()) },
       ],
-      order: { updatedAt: 'ASC' },
+      order: { updatedAt: 'DESC' },
       take: limit,
     });
   }
