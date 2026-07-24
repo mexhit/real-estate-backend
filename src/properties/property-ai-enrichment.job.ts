@@ -11,7 +11,7 @@ export class PropertyAiEnrichmentJob {
 
   constructor(private readonly propertiesService: PropertiesService) {}
 
-  @Cron('*/5 * * * *')
+  @Cron('3-59/5 * * * *')
   async updatePropertiesFromAi(): Promise<void> {
     if (this.isRunning) {
       this.logger.warn(
