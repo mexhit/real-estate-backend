@@ -9,6 +9,7 @@ describe('PropertiesService', () => {
   let repository: {
     save: jest.Mock;
     findOne: jest.Mock;
+    find: jest.Mock;
     query: jest.Mock;
     update: jest.Mock;
   };
@@ -18,6 +19,7 @@ describe('PropertiesService', () => {
     repository = {
       save: jest.fn(),
       findOne: jest.fn(),
+      find: jest.fn(),
       query: jest.fn(),
       update: jest.fn(),
     };
@@ -73,6 +75,7 @@ describe('PropertiesService', () => {
       squareMeters: 85,
       propertyType: 'APARTMENT_2_1',
       aiResponseError: null,
+      aiMetadataUpdatedAt: expect.any(Date),
     });
     expect(saved).toMatchObject({
       priceAmount: 120000,
@@ -80,6 +83,7 @@ describe('PropertiesService', () => {
       squareMeters: 85,
       propertyType: 'APARTMENT_2_1',
       aiResponseError: null,
+      aiMetadataUpdatedAt: expect.any(Date),
     });
   });
 
@@ -109,6 +113,7 @@ describe('PropertiesService', () => {
     expect(repository.save).toHaveBeenCalledWith({
       ...property,
       aiResponseError: null,
+      aiMetadataUpdatedAt: expect.any(Date),
     });
     expect(saved).toMatchObject({
       priceAmount: 95000,
@@ -116,6 +121,7 @@ describe('PropertiesService', () => {
       squareMeters: 72,
       propertyType: 'VILLA',
       aiResponseError: null,
+      aiMetadataUpdatedAt: expect.any(Date),
     });
   });
 
@@ -140,9 +146,11 @@ describe('PropertiesService', () => {
       squareMeters: null,
       propertyType: null,
       aiResponseError: expect.stringContaining('AI timeout'),
+      aiMetadataUpdatedAt: expect.any(Date),
     });
     expect(saved).toMatchObject({
       aiResponseError: expect.stringContaining('AI timeout'),
+      aiMetadataUpdatedAt: expect.any(Date),
     });
   });
 
@@ -210,6 +218,7 @@ describe('PropertiesService', () => {
       squareMeters: 180,
       propertyType: 'VILLA',
       aiResponseError: null,
+      aiMetadataUpdatedAt: expect.any(Date),
     });
     expect(updated).toMatchObject({
       priceAmount: 450000,
@@ -217,6 +226,7 @@ describe('PropertiesService', () => {
       squareMeters: 180,
       propertyType: 'VILLA',
       aiResponseError: null,
+      aiMetadataUpdatedAt: expect.any(Date),
     });
   });
 
@@ -254,6 +264,7 @@ describe('PropertiesService', () => {
     expect(repository.save).toHaveBeenCalledWith({
       ...property,
       aiResponseError: expect.stringContaining('AI timeout'),
+      aiMetadataUpdatedAt: expect.any(Date),
     });
     expect(updated).toMatchObject({
       priceAmount: 100000,
@@ -261,6 +272,25 @@ describe('PropertiesService', () => {
       squareMeters: 70,
       propertyType: 'APARTMENT_2_1',
       aiResponseError: expect.stringContaining('AI timeout'),
+      aiMetadataUpdatedAt: expect.any(Date),
+    });
+  });
+
+  it('finds properties that need AI metadata enrichment', async () => {
+    const properties = [{ id: 1 }, { id: 2 }] as Property[];
+
+    repository.find.mockResolvedValue(properties);
+
+    await expect(service.findPropertiesNeedingAiMetadata(10)).resolves.toBe(
+      properties,
+    );
+    expect(repository.find).toHaveBeenCalledWith({
+      where: [
+        { aiMetadataUpdatedAt: expect.any(Object) },
+        { aiResponseError: expect.any(Object) },
+      ],
+      order: { updatedAt: 'ASC' },
+      take: 10,
     });
   });
 

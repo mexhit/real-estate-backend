@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import {
   normalizePropertyType,
   Property,
@@ -198,6 +198,7 @@ export class PropertiesService {
     }
 
     const normalizedPropertyType = normalizePropertyType(property.propertyType);
+    const aiMetadataUpdatedAt = new Date();
 
     return this.propertyRepository.save({
       ...property,
@@ -210,6 +211,7 @@ export class PropertiesService {
       propertyType:
         normalizedPropertyType ?? extractedMetadata?.propertyType ?? null,
       aiResponseError,
+      aiMetadataUpdatedAt,
     });
   }
 
@@ -243,6 +245,7 @@ export class PropertiesService {
         squareMeters: extractedMetadata.squareMeters,
         propertyType: extractedMetadata.propertyType,
         aiResponseError: null,
+        aiMetadataUpdatedAt: new Date(),
       });
     } catch (error: unknown) {
       const aiResponseError = this.formatAiResponseError(error);
@@ -255,8 +258,20 @@ export class PropertiesService {
       return this.propertyRepository.save({
         ...property,
         aiResponseError,
+        aiMetadataUpdatedAt: new Date(),
       });
     }
+  }
+
+  findPropertiesNeedingAiMetadata(limit: number): Promise<Property[]> {
+    return this.propertyRepository.find({
+      where: [
+        { aiMetadataUpdatedAt: IsNull() },
+        { aiResponseError: Not(IsNull()) },
+      ],
+      order: { updatedAt: 'ASC' },
+      take: limit,
+    });
   }
 
   queueCreateProperties(properties: Property[]): void {

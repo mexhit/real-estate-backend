@@ -70,6 +70,9 @@ export class Property {
   @Column({ type: 'text', nullable: true })
   aiResponseError: string | null;
 
+  @Column({ type: 'timestamp', nullable: true })
+  aiMetadataUpdatedAt: Date | null;
+
   @Column({ default: false })
   seen: boolean;
 
