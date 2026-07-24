@@ -8,6 +8,7 @@ describe('PropertiesService', () => {
   let service: PropertiesService;
   let repository: {
     save: jest.Mock;
+    findOne: jest.Mock;
     query: jest.Mock;
     update: jest.Mock;
   };
@@ -16,6 +17,7 @@ describe('PropertiesService', () => {
   beforeEach(async () => {
     repository = {
       save: jest.fn(),
+      findOne: jest.fn(),
       query: jest.fn(),
       update: jest.fn(),
     };
@@ -171,6 +173,95 @@ describe('PropertiesService', () => {
     expect(createPropertySpy).toHaveBeenNthCalledWith(1, properties[0]);
     expect(createPropertySpy).toHaveBeenNthCalledWith(2, properties[1]);
     expect(created).toEqual(properties);
+  });
+
+  it('updates an existing property with AI metadata', async () => {
+    const property = {
+      id: 10,
+      providerId: 'provider-10',
+      title: 'Villa',
+      url: 'https://example.com/property/10',
+      description: 'Villa, 180 m2, EUR 450000',
+      price: '450000 EUR',
+      priceAmount: null,
+      priceCurrency: null,
+      squareMeters: null,
+      propertyType: null,
+      aiResponseError: 'previous error',
+    } as Property;
+
+    repository.findOne.mockResolvedValue(property);
+    extractionService.extract.mockResolvedValue({
+      priceAmount: 450000,
+      priceCurrency: 'EUR',
+      squareMeters: 180,
+      propertyType: 'VILLA',
+    });
+    repository.save.mockImplementation(async (payload) => payload);
+
+    const updated = await service.updatePropertyFromAi(10);
+
+    expect(repository.findOne).toHaveBeenCalledWith({ where: { id: 10 } });
+    expect(extractionService.extract).toHaveBeenCalledWith(property);
+    expect(repository.save).toHaveBeenCalledWith({
+      ...property,
+      priceAmount: 450000,
+      priceCurrency: 'EUR',
+      squareMeters: 180,
+      propertyType: 'VILLA',
+      aiResponseError: null,
+    });
+    expect(updated).toMatchObject({
+      priceAmount: 450000,
+      priceCurrency: 'EUR',
+      squareMeters: 180,
+      propertyType: 'VILLA',
+      aiResponseError: null,
+    });
+  });
+
+  it('throws when updating AI metadata for a missing property', async () => {
+    repository.findOne.mockResolvedValue(null);
+
+    await expect(service.updatePropertyFromAi(404)).rejects.toThrow(
+      'Property with id 404 not found',
+    );
+    expect(extractionService.extract).not.toHaveBeenCalled();
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it('records the AI error when updating an existing property fails', async () => {
+    const property = {
+      id: 11,
+      providerId: 'provider-11',
+      title: 'Apartment',
+      url: 'https://example.com/property/11',
+      description: 'Description',
+      price: '100000 EUR',
+      priceAmount: 100000,
+      priceCurrency: 'EUR',
+      squareMeters: 70,
+      propertyType: 'APARTMENT_2_1',
+      aiResponseError: null,
+    } as Property;
+
+    repository.findOne.mockResolvedValue(property);
+    extractionService.extract.mockRejectedValue(new Error('AI timeout'));
+    repository.save.mockImplementation(async (payload) => payload);
+
+    const updated = await service.updatePropertyFromAi(11);
+
+    expect(repository.save).toHaveBeenCalledWith({
+      ...property,
+      aiResponseError: expect.stringContaining('AI timeout'),
+    });
+    expect(updated).toMatchObject({
+      priceAmount: 100000,
+      priceCurrency: 'EUR',
+      squareMeters: 70,
+      propertyType: 'APARTMENT_2_1',
+      aiResponseError: expect.stringContaining('AI timeout'),
+    });
   });
 
   it('queues property creation in the background', () => {

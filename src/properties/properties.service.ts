@@ -1,12 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import {
   normalizePropertyType,
   Property,
   PropertyType,
 } from './property.entity';
-import { In } from 'typeorm';
 import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
 
 type PropertyFilters = {
@@ -222,6 +221,42 @@ export class PropertiesService {
     }
 
     return createdProperties;
+  }
+
+  async updatePropertyFromAi(propertyId: number): Promise<Property> {
+    const property = await this.propertyRepository.findOne({
+      where: { id: propertyId },
+    });
+
+    if (!property) {
+      throw new NotFoundException(`Property with id ${propertyId} not found`);
+    }
+
+    try {
+      const extractedMetadata =
+        await this.propertyMetadataExtractionService.extract(property);
+
+      return this.propertyRepository.save({
+        ...property,
+        priceAmount: extractedMetadata.priceAmount,
+        priceCurrency: extractedMetadata.priceCurrency,
+        squareMeters: extractedMetadata.squareMeters,
+        propertyType: extractedMetadata.propertyType,
+        aiResponseError: null,
+      });
+    } catch (error: unknown) {
+      const aiResponseError = this.formatAiResponseError(error);
+
+      this.logger.warn(
+        `AI metadata extraction failed for propertyId=${propertyId}`,
+        aiResponseError,
+      );
+
+      return this.propertyRepository.save({
+        ...property,
+        aiResponseError,
+      });
+    }
   }
 
   queueCreateProperties(properties: Property[]): void {

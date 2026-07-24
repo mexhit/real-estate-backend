@@ -7,12 +7,14 @@ describe('PropertiesController', () => {
   let propertiesService: {
     getProperties: jest.Mock;
     queueCreateProperties: jest.Mock;
+    updatePropertyFromAi: jest.Mock;
   };
 
   beforeEach(async () => {
     propertiesService = {
       getProperties: jest.fn(),
       queueCreateProperties: jest.fn(),
+      updatePropertyFromAi: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -151,5 +153,20 @@ describe('PropertiesController', () => {
       accepted: true,
       count: 2,
     });
+  });
+
+  it('passes the property id to the AI metadata update service method', async () => {
+    const property = {
+      id: 5,
+      priceAmount: 120000,
+      priceCurrency: 'EUR',
+      squareMeters: 85,
+      propertyType: 'APARTMENT_2_1',
+    };
+
+    propertiesService.updatePropertyFromAi.mockResolvedValue(property);
+
+    await expect(controller.updatePropertyFromAi(5)).resolves.toBe(property);
+    expect(propertiesService.updatePropertyFromAi).toHaveBeenCalledWith(5);
   });
 });

@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseIntPipe,
   Post,
   Put,
   Query,
@@ -86,6 +87,11 @@ export class PropertiesController {
   @AllowApiKey()
   createProperty(@Body() property: Property) {
     return this.propertiesService.createProperty(property);
+  }
+
+  @Post('ai-metadata')
+  updatePropertyFromAi(@Body('propertyId', ParseIntPipe) propertyId: number) {
+    return this.propertiesService.updatePropertyFromAi(propertyId);
   }
 
   @Post('bulk')
