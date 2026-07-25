@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import {
   normalizePropertyType,
   Property,
@@ -264,10 +264,18 @@ export class PropertiesService {
   }
 
   findPropertiesNeedingAiMetadata(limit: number): Promise<Property[]> {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
     return this.propertyRepository.find({
       where: [
-        { aiMetadataUpdatedAt: IsNull() },
-        { aiResponseError: Not(IsNull()) },
+        {
+          createdAt: MoreThanOrEqual(twentyFourHoursAgo),
+          aiMetadataUpdatedAt: IsNull(),
+        },
+        {
+          createdAt: MoreThanOrEqual(twentyFourHoursAgo),
+          aiResponseError: Not(IsNull()),
+        },
       ],
       order: { updatedAt: 'DESC' },
       take: limit,

@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { IsNull, MoreThanOrEqual, Not } from 'typeorm';
 import { PropertiesService } from './properties.service';
 import { Property } from './property.entity';
 import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
@@ -278,20 +279,33 @@ describe('PropertiesService', () => {
 
   it('finds properties that need AI metadata enrichment', async () => {
     const properties = [{ id: 1 }, { id: 2 }] as Property[];
+    const now = new Date('2026-07-26T12:00:00.000Z');
+    const twentyFourHoursAgo = new Date('2026-07-25T12:00:00.000Z');
 
+    jest.useFakeTimers().setSystemTime(now);
     repository.find.mockResolvedValue(properties);
 
-    await expect(service.findPropertiesNeedingAiMetadata(10)).resolves.toBe(
-      properties,
-    );
-    expect(repository.find).toHaveBeenCalledWith({
-      where: [
-        { aiMetadataUpdatedAt: expect.any(Object) },
-        { aiResponseError: expect.any(Object) },
-      ],
-      order: { updatedAt: 'DESC' },
-      take: 10,
-    });
+    try {
+      await expect(service.findPropertiesNeedingAiMetadata(10)).resolves.toBe(
+        properties,
+      );
+      expect(repository.find).toHaveBeenCalledWith({
+        where: [
+          {
+            createdAt: MoreThanOrEqual(twentyFourHoursAgo),
+            aiMetadataUpdatedAt: IsNull(),
+          },
+          {
+            createdAt: MoreThanOrEqual(twentyFourHoursAgo),
+            aiResponseError: Not(IsNull()),
+          },
+        ],
+        order: { updatedAt: 'DESC' },
+        take: 10,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('queues property creation in the background', () => {
