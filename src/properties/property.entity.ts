@@ -1,6 +1,7 @@
 import {
   Column,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
@@ -35,12 +36,15 @@ export function normalizePropertyType(value: unknown): PropertyType | null {
   return null;
 }
 
+@Index('IDX_property_provider_id_id', ['providerId', 'id'])
+@Index('IDX_property_provider_id_price', ['providerId', 'price'])
 @Entity()
 export class Property {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column()
+  @Index('IDX_property_provider_id')
   providerId: string;
 
   @Column()
@@ -65,6 +69,7 @@ export class Property {
   squareMeters: number | null;
 
   @Column({ nullable: true })
+  @Index('IDX_property_property_type')
   propertyType: PropertyType | null;
 
   @Column({ type: 'text', nullable: true })
@@ -74,12 +79,15 @@ export class Property {
   aiMetadataUpdatedAt: Date | null;
 
   @Column({ default: false })
+  @Index('IDX_property_seen')
   seen: boolean;
 
   @Column({ default: false })
+  @Index('IDX_property_bookmarked')
   bookmarked: boolean;
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @Index('IDX_property_created_at')
   createdAt: Date;
 
   @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
