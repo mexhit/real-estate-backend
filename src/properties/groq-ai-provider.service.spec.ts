@@ -9,7 +9,7 @@ describe('GroqAiProviderService', () => {
       get: jest.fn((key: string, defaultValue?: string) => {
         const values: Record<string, string> = {
           GROQ_API_KEY: 'test-key',
-          GROQ_MODEL: 'llama-3.1-8b-instant',
+          GROQ_MODEL: 'openai/gpt-oss-20b',
           GROQ_MAX_RETRIES: '2',
           GROQ_RETRY_DELAY_MS: '0',
           GROQ_SERVICE_TIER: 'on_demand',

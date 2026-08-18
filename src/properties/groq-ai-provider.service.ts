@@ -24,7 +24,7 @@ export class GroqAiProviderService implements AiProvider {
     this.apiKey = this.configService.get<string>('GROQ_API_KEY') ?? null;
     this.model = this.configService.get<string>(
       'GROQ_MODEL',
-      'llama-3.1-8b-instant',
+      'openai/gpt-oss-20b',
     );
     this.maxRetries = Math.max(
       0,
