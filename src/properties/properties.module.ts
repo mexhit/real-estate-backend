@@ -5,7 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Property } from './property.entity';
 import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
 import { AI_PROVIDER } from './ai-provider.interface';
-import { GroqAiProviderService } from './groq-ai-provider.service';
+import { GeminiAiProviderService } from './gemini-ai-provider.service';
 import { PropertyAiEnrichmentJob } from './property-ai-enrichment.job';
 
 @Module({
@@ -15,10 +15,10 @@ import { PropertyAiEnrichmentJob } from './property-ai-enrichment.job';
     PropertiesService,
     PropertyAiEnrichmentJob,
     PropertyMetadataExtractionService,
-    GroqAiProviderService,
+    GeminiAiProviderService,
     {
       provide: AI_PROVIDER,
-      useExisting: GroqAiProviderService,
+      useExisting: GeminiAiProviderService,
     },
   ],
 })

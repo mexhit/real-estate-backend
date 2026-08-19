@@ -19,7 +19,7 @@ export class GeminiAiProviderService implements AiProvider {
     this.apiKey = this.configService.get<string>('GEMINI_API_KEY') ?? null;
     this.model = this.configService.get<string>(
       'GEMINI_MODEL',
-      'gemini-2.0-flash-lite',
+      'gemini-3.5-flash-lite',
     );
     this.maxRetries = Math.max(
       0,

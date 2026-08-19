@@ -7,7 +7,7 @@ describe('GeminiAiProviderService', () => {
       get: jest.fn((key: string, defaultValue?: string) => {
         const values: Record<string, string> = {
           GEMINI_API_KEY: 'test-key',
-          GEMINI_MODEL: 'gemini-2.0-flash-lite',
+          GEMINI_MODEL: 'gemini-3.5-flash-lite',
           GEMINI_MAX_RETRIES: '2',
           GEMINI_RETRY_DELAY_MS: '0',
         };
