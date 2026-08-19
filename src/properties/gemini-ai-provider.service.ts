@@ -62,10 +62,7 @@ export class GeminiAiProviderService implements AiProvider {
           continue;
         }
 
-        const message =
-          error instanceof Error ? error.message : 'Unknown provider error';
-        this.logger.warn(`AI provider request failed: ${message}`);
-        return null;
+        throw error;
       }
     }
 
@@ -99,11 +96,8 @@ export class GeminiAiProviderService implements AiProvider {
       this.client = new GoogleGenAI({ apiKey: this.apiKey as string });
       return this.client;
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown provider error';
-      this.logger.warn(`Failed to initialize Gemini provider: ${message}`);
       this.clientPromise = null;
-      return null;
+      throw error;
     }
   }
 

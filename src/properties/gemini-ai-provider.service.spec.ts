@@ -33,11 +33,10 @@ describe('GeminiAiProviderService', () => {
     expect(generateContent).toHaveBeenCalledTimes(2);
   });
 
-  it('returns null when retries are exhausted', async () => {
+  it('throws when retries are exhausted', async () => {
     const service = new GeminiAiProviderService(createConfigService());
-    const generateContent = jest
-      .fn()
-      .mockRejectedValue({ status: 429, message: '429 Too Many Requests' });
+    const error = { status: 429, message: '429 Too Many Requests' };
+    const generateContent = jest.fn().mockRejectedValue(error);
 
     (service as any).client = {
       models: {
@@ -45,7 +44,7 @@ describe('GeminiAiProviderService', () => {
       },
     };
 
-    await expect(service.generateText('prompt')).resolves.toBeNull();
+    await expect(service.generateText('prompt')).rejects.toBe(error);
     expect(generateContent).toHaveBeenCalledTimes(3);
   });
 });
