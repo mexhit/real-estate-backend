@@ -24,7 +24,10 @@ import { ScheduleModule } from '@nestjs/schedule';
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE,
       autoLoadEntities: true, // automatically load entities
-      synchronize: true, // auto-create tables (disable in production)
+      // Schema synchronization can guess destructive timestamp conversions.
+      // Opt in only for disposable local databases; use explicit migrations
+      // for persistent environments.
+      synchronize: process.env.DB_SYNCHRONIZE === 'true',
     }),
     PropertiesModule,
     UsersModule,

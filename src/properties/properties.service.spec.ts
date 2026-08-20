@@ -349,4 +349,62 @@ describe('PropertiesService', () => {
       ['SHOP', 'VILLA'],
     );
   });
+
+  describe('getNewPropertiesSeries', () => {
+    it('returns 120 ascending Tirane dates with missing dates zero-filled', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-08-19T12:00:00.000Z'));
+      repository.query.mockResolvedValue([
+        { date: '2026-04-22', count: '2' },
+        { date: '2026-08-19', count: '5' },
+      ]);
+
+      try {
+        const series = await service.getNewPropertiesSeries();
+
+        expect(series).toHaveLength(120);
+        expect(series[0]).toEqual({
+          date: '2026-04-22',
+          count: 2,
+        });
+        expect(series[1]).toEqual({
+          date: '2026-04-23',
+          count: 0,
+        });
+        expect(series[119]).toEqual({
+          date: '2026-08-19',
+          count: 5,
+        });
+        const [query] = repository.query.mock.calls[0];
+        expect(query).toContain('MIN(property."createdAt")');
+        expect(query).toContain('GROUP BY property."providerId"');
+        expect(query).toContain('::date - 119');
+        expect(query).toContain('::date + 1');
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it.each([
+      ['spring DST change', '2026-03-29T22:30:00.000Z', '2026-03-30'],
+      ['autumn DST change', '2026-10-25T23:30:00.000Z', '2026-10-26'],
+    ])('uses Tirane calendar dates across the %s', async (_, now, today) => {
+      jest.useFakeTimers().setSystemTime(new Date(now));
+      repository.query.mockResolvedValue([]);
+
+      try {
+        const series = await service.getNewPropertiesSeries();
+
+        expect(series.at(-1)).toEqual({
+          date: today,
+          count: 0,
+        });
+        expect(repository.query).toHaveBeenCalledWith(
+          expect.stringContaining('AT TIME ZONE $2'),
+          [new Date(now), 'Europe/Tirane'],
+        );
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
 });

@@ -8,6 +8,7 @@ describe('PropertiesController', () => {
     getProperties: jest.Mock;
     queueCreateProperties: jest.Mock;
     updatePropertyFromAi: jest.Mock;
+    getNewPropertiesSeries: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -15,6 +16,7 @@ describe('PropertiesController', () => {
       getProperties: jest.fn(),
       queueCreateProperties: jest.fn(),
       updatePropertyFromAi: jest.fn(),
+      getNewPropertiesSeries: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -168,5 +170,13 @@ describe('PropertiesController', () => {
 
     await expect(controller.updatePropertyFromAi(5)).resolves.toBe(property);
     expect(propertiesService.updatePropertyFromAi).toHaveBeenCalledWith(5);
+  });
+
+  it('returns the dedicated New Property analytics series', async () => {
+    const series = [{ date: '2026-08-19', count: 3 }];
+    propertiesService.getNewPropertiesSeries.mockResolvedValue(series);
+
+    await expect(controller.getNewPropertiesSeries()).resolves.toBe(series);
+    expect(propertiesService.getNewPropertiesSeries).toHaveBeenCalledTimes(1);
   });
 });

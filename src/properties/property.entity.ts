@@ -38,6 +38,7 @@ export function normalizePropertyType(value: unknown): PropertyType | null {
 
 @Index('IDX_property_provider_id_id', ['providerId', 'id'])
 @Index('IDX_property_provider_id_price', ['providerId', 'price'])
+@Index('IDX_property_provider_id_created_at', ['providerId', 'createdAt'])
 @Entity()
 export class Property {
   @PrimaryGeneratedColumn()
@@ -75,7 +76,7 @@ export class Property {
   @Column({ type: 'text', nullable: true })
   aiResponseError: string | null;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   aiMetadataUpdatedAt: Date | null;
 
   @Column({ default: false })
@@ -86,10 +87,10 @@ export class Property {
   @Index('IDX_property_bookmarked')
   bookmarked: boolean;
 
-  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @CreateDateColumn({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   @Index('IDX_property_created_at')
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @UpdateDateColumn({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
 }

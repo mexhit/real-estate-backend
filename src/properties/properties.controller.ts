@@ -56,6 +56,11 @@ export class PropertiesController {
     });
   }
 
+  @Get('analytics/new-properties')
+  getNewPropertiesSeries() {
+    return this.propertiesService.getNewPropertiesSeries();
+  }
+
   @Get('provider/:providerId')
   async getPropertiesByProviderId(
     @Param('providerId') providerId: string,

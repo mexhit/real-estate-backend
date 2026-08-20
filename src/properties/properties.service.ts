@@ -7,6 +7,15 @@ import {
   PropertyType,
 } from './property.entity';
 import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
+import {
+  buildNewPropertiesSeries,
+  NEW_PROPERTIES_SERIES_DAYS,
+  NEW_PROPERTIES_SERIES_TIME_ZONE,
+  NewPropertySeriesPoint,
+  NewPropertySeriesRow,
+} from './new-properties-series.helper';
+
+export type { NewPropertySeriesPoint } from './new-properties-series.helper';
 
 type PropertyFilters = {
   fromDate?: Date;
@@ -155,6 +164,40 @@ export class PropertiesService {
       limit,
       totalPages: Math.ceil(Number(total) / limit),
     };
+  }
+
+  async getNewPropertiesSeries(): Promise<NewPropertySeriesPoint[]> {
+    const now = new Date();
+
+    const rows: NewPropertySeriesRow[] = await this.propertyRepository.query(
+      `
+          WITH first_seen AS (
+            SELECT property."providerId", MIN(property."createdAt") AS first_seen_at
+            FROM property
+            GROUP BY property."providerId"
+          )
+          SELECT
+            TO_CHAR(
+              first_seen_at AT TIME ZONE $2,
+              'YYYY-MM-DD'
+            ) AS date,
+            COUNT(*) AS count
+          FROM first_seen
+          WHERE first_seen_at >= (
+            ((($1::timestamptz AT TIME ZONE $2)::date - ${NEW_PROPERTIES_SERIES_DAYS - 1})::timestamp
+              AT TIME ZONE $2)
+          )
+          AND first_seen_at < (
+            ((($1::timestamptz AT TIME ZONE $2)::date + 1)::timestamp
+              AT TIME ZONE $2)
+          )
+          GROUP BY date
+          ORDER BY date ASC
+        `,
+      [now, NEW_PROPERTIES_SERIES_TIME_ZONE],
+    );
+
+    return buildNewPropertiesSeries(rows, now);
   }
 
   async getPropertiesByProviderId(
