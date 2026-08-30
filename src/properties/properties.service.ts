@@ -138,12 +138,10 @@ export class PropertiesService {
         WHERE rn = 1 ${whereSql}
     `;
 
-    const data = await this.propertyRepository.query(query, queryParams);
-
-    const [{ total }] = await this.propertyRepository.query(
-      countQuery,
-      whereParams,
-    );
+    const [data, [{ total }]] = await Promise.all([
+      this.propertyRepository.query(query, queryParams),
+      this.propertyRepository.query(countQuery, whereParams),
+    ]);
 
     const enrichedData = data.map((entity) => ({
       ...entity,
