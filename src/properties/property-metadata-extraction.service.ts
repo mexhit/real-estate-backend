@@ -12,6 +12,15 @@ type ExtractedPropertyMetadata = {
   priceCurrency: string | null;
   squareMeters: number | null;
   propertyType: PropertyType | null;
+  areaName: string | null;
+};
+
+type RawExtractedPropertyMetadata = {
+  priceAmount?: unknown;
+  priceCurrency?: unknown;
+  squareMeters?: unknown;
+  propertyType?: unknown;
+  area?: unknown;
 };
 
 @Injectable()
@@ -20,10 +29,11 @@ export class PropertyMetadataExtractionService {
 
   async extract(
     property: Pick<Property, 'title' | 'description' | 'price' | 'url'>,
+    activeAreaNames: string[] = [],
   ): Promise<ExtractedPropertyMetadata> {
     const sourceText = this.buildSourceText(property);
     const rawText = await this.aiProvider.generateText(
-      this.buildPrompt(property),
+      this.buildPrompt(property, activeAreaNames),
       {
         responseMimeType: 'application/json',
       },
@@ -41,17 +51,19 @@ export class PropertyMetadataExtractionService {
 
   private buildPrompt(
     property: Pick<Property, 'title' | 'description' | 'price' | 'url'>,
+    activeAreaNames: string[],
   ): string {
     return [
       'Extract normalized real-estate data from the listing below.',
       'Return JSON only, with this exact shape:',
-      '{"priceAmount": number | null, "priceCurrency": string | null, "squareMeters": number | null, "propertyType": string | null}',
+      '{"priceAmount": number | null, "priceCurrency": string | null, "squareMeters": number | null, "propertyType": string | null, "area": string | null}',
       'Rules:',
       '- priceAmount must be an integer, without currency symbols or thousands separators.',
       '- priceCurrency should be a 3-letter ISO code when confidently inferable, otherwise null.',
       '- squareMeters may be decimal in the source, but return it as the nearest integer number of square meters.',
       '- If both total and net area are present, prefer total area.',
       `- propertyType must be exactly one of: ${PROPERTY_TYPES.join(', ')}.`,
+      `- area is the neighborhood/zone the listing is in. Known neighborhoods so far: ${activeAreaNames.join(', ') || '(none yet)'}. Return exactly one of these known values when the listing clearly matches one, or a new neighborhood name if the listing mentions one that isn't in that list, or null when no neighborhood can be confidently determined.`,
       '- Use null when a value cannot be determined confidently.',
       '',
       `Title: ${property.title ?? ''}`,
@@ -86,9 +98,7 @@ export class PropertyMetadataExtractionService {
     }
 
     try {
-      const parsed = JSON.parse(
-        jsonMatch[0],
-      ) as Partial<ExtractedPropertyMetadata>;
+      const parsed = JSON.parse(jsonMatch[0]) as RawExtractedPropertyMetadata;
 
       return {
         priceAmount: this.toPositiveIntegerOrNull(parsed.priceAmount),
@@ -97,6 +107,7 @@ export class PropertyMetadataExtractionService {
           this.toRoundedPositiveIntegerOrNull(parsed.squareMeters) ??
           this.extractSquareMetersFromText(sourceText),
         propertyType: this.toPropertyTypeOrNull(parsed.propertyType),
+        areaName: this.toAreaNameOrNull(parsed.area),
       };
     } catch {
       return {
@@ -143,11 +154,22 @@ export class PropertyMetadataExtractionService {
       priceCurrency: null,
       squareMeters: null,
       propertyType: null,
+      areaName: null,
     };
   }
 
   private toPropertyTypeOrNull(value: unknown): PropertyType | null {
     return normalizePropertyType(value);
+  }
+
+  private toAreaNameOrNull(value: unknown): string | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+
+    const trimmed = value.trim();
+
+    return trimmed.length > 0 ? trimmed : null;
   }
 
   private extractSquareMetersFromText(sourceText: string): number | null {
@@ -165,7 +187,7 @@ export class PropertyMetadataExtractionService {
 
     for (const pattern of prioritizedPatterns) {
       const match = normalizedSource.match(pattern);
-      const parsed = this.parseAreaValue(match?.[1]);
+      const parsed = this.parseSquareMetersValue(match?.[1]);
 
       if (parsed !== null) {
         return parsed;
@@ -177,7 +199,7 @@ export class PropertyMetadataExtractionService {
     );
 
     for (const match of genericMatches) {
-      const parsed = this.parseAreaValue(match[1]);
+      const parsed = this.parseSquareMetersValue(match[1]);
 
       if (parsed !== null) {
         return parsed;
@@ -187,7 +209,7 @@ export class PropertyMetadataExtractionService {
     return null;
   }
 
-  private parseAreaValue(value: string | undefined): number | null {
+  private parseSquareMetersValue(value: string | undefined): number | null {
     if (!value) {
       return null;
     }

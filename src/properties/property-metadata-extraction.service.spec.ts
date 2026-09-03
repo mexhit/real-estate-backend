@@ -47,6 +47,7 @@ describe('PropertyMetadataExtractionService', () => {
       priceCurrency: 'EUR',
       squareMeters: 85,
       propertyType: 'APARTMENT_2_1',
+      areaName: null,
     });
   });
 
@@ -65,6 +66,7 @@ describe('PropertyMetadataExtractionService', () => {
       priceCurrency: null,
       squareMeters: null,
       propertyType: null,
+      areaName: null,
     });
   });
 
@@ -85,6 +87,7 @@ describe('PropertyMetadataExtractionService', () => {
       priceCurrency: 'EUR',
       squareMeters: 85,
       propertyType: null,
+      areaName: null,
     });
   });
 
@@ -106,6 +109,64 @@ describe('PropertyMetadataExtractionService', () => {
       priceCurrency: 'EUR',
       squareMeters: 122,
       propertyType: 'APARTMENT_2_1',
+      areaName: null,
     });
+  });
+
+  it('includes the active Area name roster in the built prompt', async () => {
+    aiProvider.generateText.mockResolvedValue(
+      '{"priceAmount":null,"priceCurrency":null,"squareMeters":null,"propertyType":null,"area":null}',
+    );
+
+    await service.extract(
+      {
+        title: 'Apartment',
+        description: 'Description',
+        price: 'raw',
+        url: 'https://example.com/property/5',
+      },
+      ['Blloku', 'Tirana e Re'],
+    );
+
+    expect(aiProvider.generateText).toHaveBeenCalledWith(
+      expect.stringContaining('Blloku, Tirana e Re'),
+      { responseMimeType: 'application/json' },
+    );
+  });
+
+  it('returns a roster name that matches the listing as areaName', async () => {
+    aiProvider.generateText.mockResolvedValue(
+      '{"priceAmount":null,"priceCurrency":null,"squareMeters":null,"propertyType":null,"area":"Blloku"}',
+    );
+
+    const result = await service.extract(
+      {
+        title: 'Apartment in Blloku',
+        description: 'Description',
+        price: 'raw',
+        url: 'https://example.com/property/6',
+      },
+      ['Blloku', 'Tirana e Re'],
+    );
+
+    expect(result.areaName).toBe('Blloku');
+  });
+
+  it('returns a novel proposed name as areaName when nothing in the roster fits', async () => {
+    aiProvider.generateText.mockResolvedValue(
+      '{"priceAmount":null,"priceCurrency":null,"squareMeters":null,"propertyType":null,"area":"Kombinat"}',
+    );
+
+    const result = await service.extract(
+      {
+        title: 'Apartment in Kombinat',
+        description: 'Description',
+        price: 'raw',
+        url: 'https://example.com/property/7',
+      },
+      ['Blloku', 'Tirana e Re'],
+    );
+
+    expect(result.areaName).toBe('Kombinat');
   });
 });

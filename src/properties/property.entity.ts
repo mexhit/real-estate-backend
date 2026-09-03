@@ -2,10 +2,13 @@ import {
   Column,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Area } from '../areas/area.entity';
 
 export const PROPERTY_TYPES = [
   'APARTMENT_1_1',
@@ -72,6 +75,14 @@ export class Property {
   @Column({ nullable: true })
   @Index('IDX_property_property_type')
   propertyType: PropertyType | null;
+
+  @Column({ type: 'integer', nullable: true })
+  @Index('IDX_property_area_id')
+  areaId: number | null;
+
+  @ManyToOne(() => Area, { nullable: true })
+  @JoinColumn({ name: 'areaId' })
+  area?: Area | null;
 
   @Column({ type: 'text', nullable: true })
   aiResponseError: string | null;

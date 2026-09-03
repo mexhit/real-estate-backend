@@ -4,6 +4,8 @@ import { IsNull, MoreThanOrEqual, Not } from 'typeorm';
 import { PropertiesService } from './properties.service';
 import { Property } from './property.entity';
 import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
+import { AreasService } from '../areas/areas.service';
+import { Area } from '../areas/area.entity';
 
 describe('PropertiesService', () => {
   let service: PropertiesService;
@@ -15,6 +17,7 @@ describe('PropertiesService', () => {
     update: jest.Mock;
   };
   let extractionService: { extract: jest.Mock };
+  let areasService: { listActiveNames: jest.Mock; findOrCreate: jest.Mock };
 
   beforeEach(async () => {
     repository = {
@@ -27,6 +30,10 @@ describe('PropertiesService', () => {
     extractionService = {
       extract: jest.fn(),
     };
+    areasService = {
+      listActiveNames: jest.fn().mockResolvedValue([]),
+      findOrCreate: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -38,6 +45,10 @@ describe('PropertiesService', () => {
         {
           provide: PropertyMetadataExtractionService,
           useValue: extractionService,
+        },
+        {
+          provide: AreasService,
+          useValue: areasService,
         },
       ],
     }).compile();
@@ -68,13 +79,14 @@ describe('PropertiesService', () => {
 
     const saved = await service.createProperty(property);
 
-    expect(extractionService.extract).toHaveBeenCalledWith(property);
+    expect(extractionService.extract).toHaveBeenCalledWith(property, []);
     expect(repository.save).toHaveBeenCalledWith({
       ...property,
       priceAmount: 120000,
       priceCurrency: 'EUR',
       squareMeters: 85,
       propertyType: 'APARTMENT_2_1',
+      areaId: null,
       aiResponseError: null,
       aiMetadataUpdatedAt: expect.any(Date),
     });
@@ -113,6 +125,7 @@ describe('PropertiesService', () => {
 
     expect(repository.save).toHaveBeenCalledWith({
       ...property,
+      areaId: null,
       aiResponseError: null,
       aiMetadataUpdatedAt: expect.any(Date),
     });
@@ -124,6 +137,69 @@ describe('PropertiesService', () => {
       aiResponseError: null,
       aiMetadataUpdatedAt: expect.any(Date),
     });
+  });
+
+  it('resolves the extracted areaName into an areaId before saving', async () => {
+    const property = {
+      providerId: 'provider-4',
+      title: 'Apartment in Blloku',
+      url: 'https://example.com/property/4',
+      description: 'Description',
+      price: '100000 EUR',
+    } as Property;
+
+    areasService.listActiveNames.mockResolvedValue(['Blloku']);
+    extractionService.extract.mockResolvedValue({
+      priceAmount: 100000,
+      priceCurrency: 'EUR',
+      squareMeters: 60,
+      propertyType: 'APARTMENT_2_1',
+      areaName: 'Blloku',
+    });
+    areasService.findOrCreate.mockResolvedValue({
+      id: 7,
+      name: 'Blloku',
+    } as Area);
+    repository.save.mockImplementation(async (payload) => payload);
+
+    const saved = await service.createProperty(property);
+
+    expect(extractionService.extract).toHaveBeenCalledWith(property, [
+      'Blloku',
+    ]);
+    expect(areasService.findOrCreate).toHaveBeenCalledWith('Blloku');
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ areaId: 7 }),
+    );
+    expect(saved).toMatchObject({ areaId: 7 });
+  });
+
+  it('respects an already-set incoming areaId over the extracted one', async () => {
+    const property = {
+      providerId: 'provider-5',
+      title: 'Apartment in Blloku',
+      url: 'https://example.com/property/5',
+      description: 'Description',
+      price: '100000 EUR',
+      areaId: 3,
+    } as Property;
+
+    extractionService.extract.mockResolvedValue({
+      priceAmount: 100000,
+      priceCurrency: 'EUR',
+      squareMeters: 60,
+      propertyType: 'APARTMENT_2_1',
+      areaName: 'Blloku',
+    });
+    repository.save.mockImplementation(async (payload) => payload);
+
+    const saved = await service.createProperty(property);
+
+    expect(areasService.findOrCreate).not.toHaveBeenCalled();
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ areaId: 3 }),
+    );
+    expect(saved).toMatchObject({ areaId: 3 });
   });
 
   it('saves the property and records the AI error when extraction fails', async () => {
@@ -146,6 +222,7 @@ describe('PropertiesService', () => {
       priceCurrency: null,
       squareMeters: null,
       propertyType: null,
+      areaId: null,
       aiResponseError: expect.stringContaining('AI timeout'),
       aiMetadataUpdatedAt: expect.any(Date),
     });
@@ -211,13 +288,14 @@ describe('PropertiesService', () => {
     const updated = await service.updatePropertyFromAi(10);
 
     expect(repository.findOne).toHaveBeenCalledWith({ where: { id: 10 } });
-    expect(extractionService.extract).toHaveBeenCalledWith(property);
+    expect(extractionService.extract).toHaveBeenCalledWith(property, []);
     expect(repository.save).toHaveBeenCalledWith({
       ...property,
       priceAmount: 450000,
       priceCurrency: 'EUR',
       squareMeters: 180,
       propertyType: 'VILLA',
+      areaId: null,
       aiResponseError: null,
       aiMetadataUpdatedAt: expect.any(Date),
     });
@@ -229,6 +307,43 @@ describe('PropertiesService', () => {
       aiResponseError: null,
       aiMetadataUpdatedAt: expect.any(Date),
     });
+  });
+
+  it('resolves the extracted areaName into an areaId when updating from AI', async () => {
+    const property = {
+      id: 12,
+      providerId: 'provider-12',
+      title: 'Apartment in Tirana e Re',
+      url: 'https://example.com/property/12',
+      description: 'Description',
+      price: '100000 EUR',
+    } as Property;
+
+    repository.findOne.mockResolvedValue(property);
+    areasService.listActiveNames.mockResolvedValue(['Tirana e Re']);
+    extractionService.extract.mockResolvedValue({
+      priceAmount: 100000,
+      priceCurrency: 'EUR',
+      squareMeters: 60,
+      propertyType: 'APARTMENT_2_1',
+      areaName: 'Tirana e Re',
+    });
+    areasService.findOrCreate.mockResolvedValue({
+      id: 9,
+      name: 'Tirana e Re',
+    } as Area);
+    repository.save.mockImplementation(async (payload) => payload);
+
+    const updated = await service.updatePropertyFromAi(12);
+
+    expect(extractionService.extract).toHaveBeenCalledWith(property, [
+      'Tirana e Re',
+    ]);
+    expect(areasService.findOrCreate).toHaveBeenCalledWith('Tirana e Re');
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ areaId: 9 }),
+    );
+    expect(updated).toMatchObject({ areaId: 9 });
   });
 
   it('throws when updating AI metadata for a missing property', async () => {

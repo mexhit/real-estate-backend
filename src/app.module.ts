@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PropertiesModule } from './properties/properties.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from './users/users.module';
+import { AreasModule } from './areas/areas.module';
 import { AuthModule } from './auth/auth.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
@@ -32,6 +33,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     PropertiesModule,
     UsersModule,
     AuthModule,
+    AreasModule,
   ],
   controllers: [AppController],
   providers: [

@@ -14,6 +14,7 @@ import {
   NewPropertySeriesPoint,
   NewPropertySeriesRow,
 } from './new-properties-series.helper';
+import { AreasService } from '../areas/areas.service';
 
 export type { NewPropertySeriesPoint } from './new-properties-series.helper';
 
@@ -34,6 +35,7 @@ export class PropertiesService {
     @InjectRepository(Property)
     private propertyRepository: Repository<Property>,
     private readonly propertyMetadataExtractionService: PropertyMetadataExtractionService,
+    private readonly areasService: AreasService,
   ) {}
 
   async getProperties(page: number, limit: number, filters?: PropertyFilters) {
@@ -226,10 +228,19 @@ export class PropertiesService {
       ReturnType<PropertyMetadataExtractionService['extract']>
     > | null = null;
     let aiResponseError: string | null = null;
+    let resolvedAreaId: number | null = null;
 
     try {
-      extractedMetadata =
-        await this.propertyMetadataExtractionService.extract(property);
+      const activeAreaNames = await this.areasService.listActiveNames();
+
+      extractedMetadata = await this.propertyMetadataExtractionService.extract(
+        property,
+        activeAreaNames,
+      );
+
+      if (property.areaId == null) {
+        resolvedAreaId = await this.resolveAreaId(extractedMetadata.areaName);
+      }
     } catch (error: unknown) {
       aiResponseError = this.formatAiResponseError(error);
       this.logger.warn(
@@ -251,6 +262,7 @@ export class PropertiesService {
         property.squareMeters ?? extractedMetadata?.squareMeters ?? null,
       propertyType:
         normalizedPropertyType ?? extractedMetadata?.propertyType ?? null,
+      areaId: property.areaId ?? resolvedAreaId ?? null,
       aiResponseError,
       aiMetadataUpdatedAt,
     });
@@ -276,8 +288,14 @@ export class PropertiesService {
     }
 
     try {
+      const activeAreaNames = await this.areasService.listActiveNames();
       const extractedMetadata =
-        await this.propertyMetadataExtractionService.extract(property);
+        await this.propertyMetadataExtractionService.extract(
+          property,
+          activeAreaNames,
+        );
+
+      const areaId = await this.resolveAreaId(extractedMetadata.areaName);
 
       return this.propertyRepository.save({
         ...property,
@@ -285,6 +303,7 @@ export class PropertiesService {
         priceCurrency: extractedMetadata.priceCurrency,
         squareMeters: extractedMetadata.squareMeters,
         propertyType: extractedMetadata.propertyType,
+        areaId,
         aiResponseError: null,
         aiMetadataUpdatedAt: new Date(),
       });
@@ -351,5 +370,15 @@ export class PropertiesService {
     }
 
     return String(error);
+  }
+
+  private async resolveAreaId(areaName: string | null): Promise<number | null> {
+    if (!areaName) {
+      return null;
+    }
+
+    const area = await this.areasService.findOrCreate(areaName);
+
+    return area.id;
   }
 }

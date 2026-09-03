@@ -7,9 +7,10 @@ import { PropertyMetadataExtractionService } from './property-metadata-extractio
 import { AI_PROVIDER } from './ai-provider.interface';
 import { GeminiAiProviderService } from './gemini-ai-provider.service';
 import { PropertyAiEnrichmentJob } from './property-ai-enrichment.job';
+import { AreasModule } from '../areas/areas.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Property])],
+  imports: [TypeOrmModule.forFeature([Property]), AreasModule],
   controllers: [PropertiesController],
   providers: [
     PropertiesService,

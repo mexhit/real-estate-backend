@@ -20,6 +20,10 @@ lerna-debug.log*
 /.nyc_output
 
 # IDEs and editors
+/.agents
+/.skills
+/.scratch
+/.claude
 /.idea
 .project
 .classpath
