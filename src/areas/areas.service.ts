@@ -1,7 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { Area, normalizeAreaKey } from './area.entity';
+
+const POSTGRES_UNIQUE_VIOLATION = '23505';
 
 @Injectable()
 export class AreasService {
@@ -50,13 +57,25 @@ export class AreasService {
     return area;
   }
 
-  create(name: string): Promise<Area> {
+  async create(name: string): Promise<Area> {
     const trimmed = name.trim();
 
-    return this.areaRepository.save({
-      name: trimmed,
-      key: normalizeAreaKey(trimmed),
-    });
+    if (!trimmed) {
+      throw new BadRequestException('Area name is required');
+    }
+
+    try {
+      return await this.areaRepository.save({
+        name: trimmed,
+        key: normalizeAreaKey(trimmed),
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code === POSTGRES_UNIQUE_VIOLATION) {
+        throw new ConflictException('An area with this name already exists');
+      }
+
+      throw err;
+    }
   }
 
   async rename(id: number, name: string): Promise<Area> {
