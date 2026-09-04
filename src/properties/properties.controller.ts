@@ -28,6 +28,7 @@ export class PropertiesController {
     @Query('onlyBookmarked') onlyBookmarked: string,
     @Query('onlyPriceChanged') onlyPriceChanged: string,
     @Query('propertyTypes') propertyTypes: string | string[],
+    @Query('areaIds') areaIds: string | string[],
   ) {
     // Ensure positive integers
     page = Math.max(1, Number(page));
@@ -46,6 +47,15 @@ export class PropertiesController {
     const propertyTypesFilter =
       normalizedPropertyTypes.length > 0 ? normalizedPropertyTypes : undefined;
 
+    const normalizedAreaIds = (
+      Array.isArray(areaIds) ? areaIds : [areaIds]
+    )
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value));
+
+    const areaIdsFilter =
+      normalizedAreaIds.length > 0 ? normalizedAreaIds : undefined;
+
     return this.propertiesService.getProperties(page, limit, {
       fromDate: fromDateObj,
       toDate: toDateObj,
@@ -53,6 +63,7 @@ export class PropertiesController {
       onlyBookmarked: onlyBookmarkedBool,
       onlyPriceChanged: onlyPriceChangedBool,
       propertyTypes: propertyTypesFilter,
+      areaIds: areaIdsFilter,
     });
   }
 

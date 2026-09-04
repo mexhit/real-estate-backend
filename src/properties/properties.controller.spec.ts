@@ -54,6 +54,7 @@ describe('PropertiesController', () => {
       'false',
       'false',
       'APARTMENT_2_1',
+      undefined,
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -84,6 +85,7 @@ describe('PropertiesController', () => {
       'false',
       'false',
       ['APARTMENT_2_1', 'SHOP'],
+      undefined,
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -114,6 +116,7 @@ describe('PropertiesController', () => {
       'false',
       'false',
       ['Apartment', 'Unknown'],
+      undefined,
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -123,6 +126,70 @@ describe('PropertiesController', () => {
       onlyBookmarked: false,
       onlyPriceChanged: false,
       propertyTypes: undefined,
+    });
+  });
+
+  it('passes an array of areaIds filters to the service', async () => {
+    propertiesService.getProperties.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
+    });
+
+    await controller.getProperties(
+      1,
+      10,
+      undefined,
+      undefined,
+      'false',
+      'false',
+      'false',
+      undefined,
+      ['3', '5'],
+    );
+
+    expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
+      fromDate: undefined,
+      toDate: undefined,
+      onlyUnseen: false,
+      onlyBookmarked: false,
+      onlyPriceChanged: false,
+      propertyTypes: undefined,
+      areaIds: [3, 5],
+    });
+  });
+
+  it('ignores non-numeric areaIds filters', async () => {
+    propertiesService.getProperties.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
+    });
+
+    await controller.getProperties(
+      1,
+      10,
+      undefined,
+      undefined,
+      'false',
+      'false',
+      'false',
+      undefined,
+      ['abc'],
+    );
+
+    expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
+      fromDate: undefined,
+      toDate: undefined,
+      onlyUnseen: false,
+      onlyBookmarked: false,
+      onlyPriceChanged: false,
+      propertyTypes: undefined,
+      areaIds: undefined,
     });
   });
 

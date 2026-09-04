@@ -11,3 +11,7 @@ _Avoid_: Property record, posting
 **New Property**:
 A Property Listing counted on the calendar date when it was first observed, determined by its earliest `createdAt` value.
 _Avoid_: Latest property, property record created that day
+
+**Area**:
+A named zone a Property Listing can be AI-resolved into (e.g. "Blloku", "Tirana e Re"), uniquely identified by a normalized `key`. Areas can be soft-deleted; a soft-deleted Area's `key` becomes available for reuse. A Property Listing keeps showing the name of its resolved Area even after that Area is soft-deleted, but only non-deleted Areas can be chosen to filter listings.
+_Avoid_: Neighborhood, Zone

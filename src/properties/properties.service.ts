@@ -25,6 +25,7 @@ type PropertyFilters = {
   onlyBookmarked?: boolean;
   onlyPriceChanged?: boolean;
   propertyTypes?: PropertyType[];
+  areaIds?: number[];
 };
 
 @Injectable()
@@ -81,6 +82,14 @@ export class PropertiesService {
       whereParams.push(...filters.propertyTypes);
     }
 
+    if (filters.areaIds && filters.areaIds.length > 0) {
+      const placeholders = filters.areaIds.map(() => `$${paramIndex++}`);
+      conditions.push(
+        `ranked_properties."areaId" IN (${placeholders.join(', ')})`,
+      );
+      whereParams.push(...filters.areaIds);
+    }
+
     const whereSql =
       conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
 
@@ -95,6 +104,7 @@ export class PropertiesService {
      ranked_properties AS (
        SELECT
          property.*,
+         area.name as "areaName",
          COUNT(*) OVER (PARTITION BY property."providerId") as provider_property_count,
          ROW_NUMBER() OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as rn,
          pcc.has_price_changed,
@@ -104,6 +114,7 @@ export class PropertiesService {
          FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as last_price
        FROM property
               LEFT JOIN price_change_check pcc ON pcc."providerId" = property."providerId"
+              LEFT JOIN area ON area.id = property."areaId"
      )
       SELECT *
       FROM ranked_properties

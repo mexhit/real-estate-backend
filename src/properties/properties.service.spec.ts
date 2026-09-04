@@ -465,6 +465,44 @@ describe('PropertiesService', () => {
     );
   });
 
+  it('applies areaIds to the list query filters', async () => {
+    repository.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: '0' }]);
+    repository.update.mockResolvedValue({ affected: 0 });
+
+    await service.getProperties(1, 10, {
+      areaIds: [3, 5],
+    });
+
+    expect(repository.query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('ranked_properties."areaId" IN ($1, $2)'),
+      [3, 5, 10, 0],
+    );
+    expect(repository.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('ranked_properties."areaId" IN ($1, $2)'),
+      [3, 5],
+    );
+  });
+
+  it('joins the area table so listed properties carry an areaName', async () => {
+    repository.query
+      .mockResolvedValueOnce([{ id: 1, areaId: 3, areaName: 'Blloku' }])
+      .mockResolvedValueOnce([{ total: '1' }]);
+    repository.update.mockResolvedValue({ affected: 0 });
+
+    const result = await service.getProperties(1, 10, {});
+
+    expect(repository.query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('LEFT JOIN area ON area.id = property."areaId"'),
+      [10, 0],
+    );
+    expect(result.data[0]).toMatchObject({ areaName: 'Blloku' });
+  });
+
   describe('getNewPropertiesSeries', () => {
     it('returns 120 ascending Tirane dates with missing dates zero-filled', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-08-19T12:00:00.000Z'));
