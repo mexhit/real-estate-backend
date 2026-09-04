@@ -1,0 +1,3 @@
+# AI Provider setting is open to any authenticated user, not admin-only
+
+The AI Provider setting (`GET`/`PATCH /settings/ai-provider`) changes app-wide behavior — it affects every subsequent metadata extraction and Area resolution call, regardless of who triggers them. That argues for restricting it to admins. However, this codebase has a `UserRole.Admin` enum value but no enforcement mechanism (no `RolesGuard` or equivalent) anywhere — only a global JWT authentication guard exists. Building role enforcement is out of scope for this feature, so the endpoint is left open to any authenticated user for now. Revisit this once role-based authorization exists elsewhere in the app.

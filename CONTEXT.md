@@ -15,3 +15,7 @@ _Avoid_: Latest property, property record created that day
 **Area**:
 A named zone a Property Listing can be AI-resolved into (e.g. "Blloku", "Tirana e Re"), uniquely identified by a normalized `key`. Areas can be soft-deleted; a soft-deleted Area's `key` becomes available for reuse. A Property Listing keeps showing the name of its resolved Area even after that Area is soft-deleted, but only non-deleted Areas can be chosen to filter listings.
 _Avoid_: Neighborhood, Zone
+
+**AI Provider**:
+The external AI service (Gemini or Groq) used to perform AI-resolution — metadata extraction and Area resolution are the same underlying call. Configurable system-wide; switching it takes effect immediately for new work. Distinct from the real-estate listing provider a Property Listing's `providerId` identifies.
+_Avoid_: Provider (ambiguous with the real-estate listing provider — always say "AI Provider")

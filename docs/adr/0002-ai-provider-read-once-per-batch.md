@@ -1,0 +1,3 @@
+# AI Provider is read once per extraction batch, not once per property
+
+`PropertyMetadataExtractionService.extractMany` processes multiple properties in one call. The AI Provider setting can change at any time via `PATCH /settings/ai-provider`, and the delegating provider could in principle re-read it before every property. We chose to read it once at the start of the batch instead, so a single `extractMany` invocation always uses one provider end-to-end. The alternative — re-reading per property — would let one bulk run silently split its results across two providers if an admin switches mid-batch, which would be confusing to debug later and provides no real benefit over pinning it for the batch's duration.
