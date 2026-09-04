@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { IsNull, MoreThanOrEqual, Not } from 'typeorm';
 import { PropertiesService } from './properties.service';
@@ -16,8 +17,9 @@ describe('PropertiesService', () => {
     query: jest.Mock;
     update: jest.Mock;
   };
-  let extractionService: { extract: jest.Mock };
+  let extractionService: { extract: jest.Mock; extractMany: jest.Mock };
   let areasService: { listActiveNames: jest.Mock; findOrCreate: jest.Mock };
+  let configService: { get: jest.Mock };
 
   beforeEach(async () => {
     repository = {
@@ -29,10 +31,14 @@ describe('PropertiesService', () => {
     };
     extractionService = {
       extract: jest.fn(),
+      extractMany: jest.fn(),
     };
     areasService = {
       listActiveNames: jest.fn().mockResolvedValue([]),
       findOrCreate: jest.fn(),
+    };
+    configService = {
+      get: jest.fn((_key: string, defaultValue?: string) => defaultValue),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -49,6 +55,10 @@ describe('PropertiesService', () => {
         {
           provide: AreasService,
           useValue: areasService,
+        },
+        {
+          provide: ConfigService,
+          useValue: configService,
         },
       ],
     }).compile();
@@ -232,33 +242,163 @@ describe('PropertiesService', () => {
     });
   });
 
-  it('creates properties one by one using createProperty', async () => {
-    const properties = [
-      {
-        providerId: 'provider-1',
-        title: 'Property 1',
-        url: 'https://example.com/property/1',
-        description: 'Description 1',
-        price: '100000 EUR',
-      },
-      {
-        providerId: 'provider-2',
-        title: 'Property 2',
-        url: 'https://example.com/property/2',
-        description: 'Description 2',
-        price: '200000 EUR',
-      },
-    ] as Property[];
+  describe('createProperties', () => {
+    it('extracts metadata for the whole batch in one call and saves each property', async () => {
+      const properties = [
+        {
+          providerId: 'provider-1',
+          title: 'Property 1',
+          url: 'https://example.com/property/1',
+          description: 'Description 1',
+          price: '100000 EUR',
+        },
+        {
+          providerId: 'provider-2',
+          title: 'Property 2',
+          url: 'https://example.com/property/2',
+          description: 'Description 2',
+          price: '200000 EUR',
+        },
+      ] as Property[];
 
-    const createPropertySpy = jest
-      .spyOn(service, 'createProperty')
-      .mockImplementation(async (property) => property);
+      extractionService.extractMany.mockResolvedValue([
+        {
+          priceAmount: 100000,
+          priceCurrency: 'EUR',
+          squareMeters: 50,
+          propertyType: 'APARTMENT_1_1',
+          areaName: null,
+        },
+        {
+          priceAmount: 200000,
+          priceCurrency: 'EUR',
+          squareMeters: 90,
+          propertyType: 'APARTMENT_2_1',
+          areaName: null,
+        },
+      ]);
+      repository.save.mockImplementation(async (payload) => payload);
 
-    const created = await service.createProperties(properties);
+      const created = await service.createProperties(properties);
 
-    expect(createPropertySpy).toHaveBeenNthCalledWith(1, properties[0]);
-    expect(createPropertySpy).toHaveBeenNthCalledWith(2, properties[1]);
-    expect(created).toEqual(properties);
+      expect(extractionService.extractMany).toHaveBeenCalledTimes(1);
+      expect(extractionService.extractMany).toHaveBeenCalledWith(
+        properties,
+        [],
+      );
+      expect(created).toMatchObject([
+        { priceAmount: 100000, propertyType: 'APARTMENT_1_1' },
+        { priceAmount: 200000, propertyType: 'APARTMENT_2_1' },
+      ]);
+    });
+
+    it('splits a large batch into chunks of the configured AI chunk size', async () => {
+      configService.get.mockImplementation(
+        (key: string, defaultValue?: string) =>
+          key === 'BULK_CREATE_AI_CHUNK_SIZE' ? '2' : defaultValue,
+      );
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          PropertiesService,
+          { provide: getRepositoryToken(Property), useValue: repository },
+          {
+            provide: PropertyMetadataExtractionService,
+            useValue: extractionService,
+          },
+          { provide: AreasService, useValue: areasService },
+          { provide: ConfigService, useValue: configService },
+        ],
+      }).compile();
+      const chunkedService = module.get<PropertiesService>(PropertiesService);
+
+      const properties = [1, 2, 3].map(
+        (n) =>
+          ({
+            providerId: `provider-${n}`,
+            title: `Property ${n}`,
+            url: `https://example.com/property/${n}`,
+            description: `Description ${n}`,
+            price: '100000 EUR',
+          }) as Property,
+      );
+
+      extractionService.extractMany.mockResolvedValue([
+        {
+          priceAmount: null,
+          priceCurrency: null,
+          squareMeters: null,
+          propertyType: null,
+          areaName: null,
+        },
+        {
+          priceAmount: null,
+          priceCurrency: null,
+          squareMeters: null,
+          propertyType: null,
+          areaName: null,
+        },
+      ]);
+      repository.save.mockImplementation(async (payload) => payload);
+
+      await chunkedService.createProperties(properties);
+
+      expect(extractionService.extractMany).toHaveBeenCalledTimes(2);
+      expect(extractionService.extractMany).toHaveBeenNthCalledWith(
+        1,
+        properties.slice(0, 2),
+        [],
+      );
+      expect(extractionService.extractMany).toHaveBeenNthCalledWith(
+        2,
+        properties.slice(2),
+        [],
+      );
+    });
+
+    it('records the same AI error on every property when batch extraction fails', async () => {
+      const properties = [
+        {
+          providerId: 'provider-1',
+          title: 'Property 1',
+          url: 'https://example.com/property/1',
+          description: 'Description 1',
+          price: '100000 EUR',
+        },
+        {
+          providerId: 'provider-2',
+          title: 'Property 2',
+          url: 'https://example.com/property/2',
+          description: 'Description 2',
+          price: '200000 EUR',
+        },
+      ] as Property[];
+
+      extractionService.extractMany.mockRejectedValue(
+        new Error('AI batch timeout'),
+      );
+      repository.save.mockImplementation(async (payload) => payload);
+
+      const created = await service.createProperties(properties);
+
+      expect(created).toMatchObject([
+        {
+          priceAmount: null,
+          aiResponseError: expect.stringContaining('AI batch timeout'),
+        },
+        {
+          priceAmount: null,
+          aiResponseError: expect.stringContaining('AI batch timeout'),
+        },
+      ]);
+    });
+
+    it('returns an empty array without calling the extraction service', async () => {
+      const created = await service.createProperties([]);
+
+      expect(created).toEqual([]);
+      expect(extractionService.extractMany).not.toHaveBeenCalled();
+    });
   });
 
   it('updates an existing property with AI metadata', async () => {
@@ -389,6 +529,119 @@ describe('PropertiesService', () => {
       propertyType: 'APARTMENT_2_1',
       aiResponseError: expect.stringContaining('AI timeout'),
       aiMetadataUpdatedAt: expect.any(Date),
+    });
+  });
+
+  describe('updatePropertiesFromAi', () => {
+    it('extracts metadata for the whole batch in one call and saves each property', async () => {
+      const properties = [
+        {
+          id: 1,
+          providerId: 'provider-1',
+          title: 'Apartment',
+          url: 'https://example.com/property/1',
+          description: 'Description',
+          price: '100000 EUR',
+        },
+        {
+          id: 2,
+          providerId: 'provider-2',
+          title: 'Villa',
+          url: 'https://example.com/property/2',
+          description: 'Description',
+          price: '450000 EUR',
+        },
+      ] as Property[];
+
+      extractionService.extractMany.mockResolvedValue([
+        {
+          priceAmount: 100000,
+          priceCurrency: 'EUR',
+          squareMeters: 60,
+          propertyType: 'APARTMENT_2_1',
+          areaName: null,
+        },
+        {
+          priceAmount: 450000,
+          priceCurrency: 'EUR',
+          squareMeters: 180,
+          propertyType: 'VILLA',
+          areaName: null,
+        },
+      ]);
+      repository.save.mockImplementation(async (payload) => payload);
+
+      const updated = await service.updatePropertiesFromAi(properties);
+
+      expect(extractionService.extractMany).toHaveBeenCalledTimes(1);
+      expect(extractionService.extractMany).toHaveBeenCalledWith(
+        properties,
+        [],
+      );
+      expect(updated).toMatchObject([
+        {
+          id: 1,
+          priceAmount: 100000,
+          propertyType: 'APARTMENT_2_1',
+          aiResponseError: null,
+        },
+        {
+          id: 2,
+          priceAmount: 450000,
+          propertyType: 'VILLA',
+          aiResponseError: null,
+        },
+      ]);
+    });
+
+    it('records the same AI error on every property when batch extraction fails', async () => {
+      const properties = [
+        {
+          id: 1,
+          providerId: 'provider-1',
+          title: 'Apartment',
+          url: 'https://example.com/property/1',
+          description: 'Description',
+          price: '100000 EUR',
+          priceAmount: null,
+        },
+        {
+          id: 2,
+          providerId: 'provider-2',
+          title: 'Villa',
+          url: 'https://example.com/property/2',
+          description: 'Description',
+          price: '450000 EUR',
+          priceAmount: null,
+        },
+      ] as Property[];
+
+      extractionService.extractMany.mockRejectedValue(
+        new Error('AI batch timeout'),
+      );
+      repository.save.mockImplementation(async (payload) => payload);
+
+      const updated = await service.updatePropertiesFromAi(properties);
+
+      expect(updated).toMatchObject([
+        {
+          id: 1,
+          priceAmount: null,
+          aiResponseError: expect.stringContaining('AI batch timeout'),
+        },
+        {
+          id: 2,
+          priceAmount: null,
+          aiResponseError: expect.stringContaining('AI batch timeout'),
+        },
+      ]);
+    });
+
+    it('returns an empty array without calling the extraction service', async () => {
+      const updated = await service.updatePropertiesFromAi([]);
+
+      expect(updated).toEqual([]);
+      expect(extractionService.extractMany).not.toHaveBeenCalled();
     });
   });
 

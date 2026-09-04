@@ -28,20 +28,22 @@ export class PropertyAiEnrichmentJob {
           AI_METADATA_BATCH_SIZE,
         );
 
-      for (const property of properties) {
-        try {
-          await this.propertiesService.updatePropertyFromAi(property.id);
-        } catch (error: unknown) {
-          const message =
-            error instanceof Error
-              ? (error.stack ?? error.message)
-              : String(error);
+      if (properties.length === 0) {
+        return;
+      }
 
-          this.logger.warn(
-            `Failed to update property ${property.id} from AI`,
-            message,
-          );
-        }
+      try {
+        await this.propertiesService.updatePropertiesFromAi(properties);
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error
+            ? (error.stack ?? error.message)
+            : String(error);
+
+        this.logger.warn(
+          `Failed to update a batch of ${properties.length} properties from AI`,
+          message,
+        );
       }
     } finally {
       this.isRunning = false;

@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import {
@@ -6,7 +7,10 @@ import {
   Property,
   PropertyType,
 } from './property.entity';
-import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
+import {
+  ExtractedPropertyMetadata,
+  PropertyMetadataExtractionService,
+} from './property-metadata-extraction.service';
 import {
   buildNewPropertiesSeries,
   NEW_PROPERTIES_SERIES_DAYS,
@@ -28,16 +32,30 @@ type PropertyFilters = {
   areaIds?: number[];
 };
 
+const DEFAULT_BULK_CREATE_AI_CHUNK_SIZE = 5;
+
 @Injectable()
 export class PropertiesService {
   private readonly logger = new Logger(PropertiesService.name);
+  private readonly bulkCreateAiChunkSize: number;
 
   constructor(
     @InjectRepository(Property)
     private propertyRepository: Repository<Property>,
     private readonly propertyMetadataExtractionService: PropertyMetadataExtractionService,
     private readonly areasService: AreasService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.bulkCreateAiChunkSize = Math.max(
+      1,
+      Number(
+        this.configService.get<string>(
+          'BULK_CREATE_AI_CHUNK_SIZE',
+          String(DEFAULT_BULK_CREATE_AI_CHUNK_SIZE),
+        ),
+      ),
+    );
+  }
 
   async getProperties(page: number, limit: number, filters?: PropertyFilters) {
     const conditions: string[] = [];
@@ -235,9 +253,7 @@ export class PropertiesService {
   }
 
   async createProperty(property: Property): Promise<Property> {
-    let extractedMetadata: Awaited<
-      ReturnType<PropertyMetadataExtractionService['extract']>
-    > | null = null;
+    let extractedMetadata: ExtractedPropertyMetadata | null = null;
     let aiResponseError: string | null = null;
     let resolvedAreaId: number | null = null;
 
@@ -260,10 +276,80 @@ export class PropertiesService {
       );
     }
 
-    const normalizedPropertyType = normalizePropertyType(property.propertyType);
-    const aiMetadataUpdatedAt = new Date();
+    return this.propertyRepository.save(
+      this.buildCreatePayload(
+        property,
+        extractedMetadata,
+        resolvedAreaId,
+        aiResponseError,
+      ),
+    );
+  }
 
-    return this.propertyRepository.save({
+  async createProperties(properties: Property[]): Promise<Property[]> {
+    if (properties.length === 0) {
+      return [];
+    }
+
+    const activeAreaNames = await this.areasService.listActiveNames();
+    const createdProperties: Property[] = [];
+
+    for (const chunk of this.chunkArray(
+      properties,
+      this.bulkCreateAiChunkSize,
+    )) {
+      let extractedMetadataByProperty: (ExtractedPropertyMetadata | null)[];
+      let aiResponseError: string | null = null;
+
+      try {
+        extractedMetadataByProperty =
+          await this.propertyMetadataExtractionService.extractMany(
+            chunk,
+            activeAreaNames,
+          );
+      } catch (error: unknown) {
+        aiResponseError = this.formatAiResponseError(error);
+        this.logger.warn(
+          `AI batch metadata extraction failed for a chunk of ${chunk.length} properties`,
+          aiResponseError,
+        );
+        extractedMetadataByProperty = chunk.map(() => null);
+      }
+
+      for (let i = 0; i < chunk.length; i++) {
+        const property = chunk[i];
+        const extractedMetadata = extractedMetadataByProperty[i];
+        let resolvedAreaId: number | null = null;
+
+        if (property.areaId == null && extractedMetadata) {
+          resolvedAreaId = await this.resolveAreaId(extractedMetadata.areaName);
+        }
+
+        createdProperties.push(
+          await this.propertyRepository.save(
+            this.buildCreatePayload(
+              property,
+              extractedMetadata,
+              resolvedAreaId,
+              aiResponseError,
+            ),
+          ),
+        );
+      }
+    }
+
+    return createdProperties;
+  }
+
+  private buildCreatePayload(
+    property: Property,
+    extractedMetadata: ExtractedPropertyMetadata | null,
+    resolvedAreaId: number | null,
+    aiResponseError: string | null,
+  ): Property {
+    const normalizedPropertyType = normalizePropertyType(property.propertyType);
+
+    return {
       ...property,
       priceAmount:
         property.priceAmount ?? extractedMetadata?.priceAmount ?? null,
@@ -275,18 +361,18 @@ export class PropertiesService {
         normalizedPropertyType ?? extractedMetadata?.propertyType ?? null,
       areaId: property.areaId ?? resolvedAreaId ?? null,
       aiResponseError,
-      aiMetadataUpdatedAt,
-    });
+      aiMetadataUpdatedAt: new Date(),
+    };
   }
 
-  async createProperties(properties: Property[]): Promise<Property[]> {
-    const createdProperties: Property[] = [];
+  private chunkArray<T>(items: T[], size: number): T[][] {
+    const chunks: T[][] = [];
 
-    for (const property of properties) {
-      createdProperties.push(await this.createProperty(property));
+    for (let i = 0; i < items.length; i += size) {
+      chunks.push(items.slice(i, i + size));
     }
 
-    return createdProperties;
+    return chunks;
   }
 
   async updatePropertyFromAi(propertyId: number): Promise<Property> {
@@ -332,6 +418,66 @@ export class PropertiesService {
         aiMetadataUpdatedAt: new Date(),
       });
     }
+  }
+
+  async updatePropertiesFromAi(properties: Property[]): Promise<Property[]> {
+    if (properties.length === 0) {
+      return [];
+    }
+
+    const activeAreaNames = await this.areasService.listActiveNames();
+    let extractedMetadataByProperty: (ExtractedPropertyMetadata | null)[];
+    let aiResponseError: string | null = null;
+
+    try {
+      extractedMetadataByProperty =
+        await this.propertyMetadataExtractionService.extractMany(
+          properties,
+          activeAreaNames,
+        );
+    } catch (error: unknown) {
+      aiResponseError = this.formatAiResponseError(error);
+      this.logger.warn(
+        `AI batch metadata extraction failed for a batch of ${properties.length} properties`,
+        aiResponseError,
+      );
+      extractedMetadataByProperty = properties.map(() => null);
+    }
+
+    const updatedProperties: Property[] = [];
+
+    for (let i = 0; i < properties.length; i++) {
+      const property = properties[i];
+      const extractedMetadata = extractedMetadataByProperty[i];
+
+      if (!extractedMetadata) {
+        updatedProperties.push(
+          await this.propertyRepository.save({
+            ...property,
+            aiResponseError,
+            aiMetadataUpdatedAt: new Date(),
+          }),
+        );
+        continue;
+      }
+
+      const areaId = await this.resolveAreaId(extractedMetadata.areaName);
+
+      updatedProperties.push(
+        await this.propertyRepository.save({
+          ...property,
+          priceAmount: extractedMetadata.priceAmount,
+          priceCurrency: extractedMetadata.priceCurrency,
+          squareMeters: extractedMetadata.squareMeters,
+          propertyType: extractedMetadata.propertyType,
+          areaId,
+          aiResponseError: null,
+          aiMetadataUpdatedAt: new Date(),
+        }),
+      );
+    }
+
+    return updatedProperties;
   }
 
   findPropertiesNeedingAiMetadata(limit: number): Promise<Property[]> {

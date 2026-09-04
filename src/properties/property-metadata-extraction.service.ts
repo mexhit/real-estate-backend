@@ -7,7 +7,7 @@ import {
 } from './property.entity';
 import { AI_PROVIDER, AiProvider } from './ai-provider.interface';
 
-type ExtractedPropertyMetadata = {
+export type ExtractedPropertyMetadata = {
   priceAmount: number | null;
   priceCurrency: string | null;
   squareMeters: number | null;
@@ -23,12 +23,18 @@ type RawExtractedPropertyMetadata = {
   area?: unknown;
 };
 
+type RawExtractedPropertyMetadataItem = RawExtractedPropertyMetadata & {
+  index?: unknown;
+};
+
+type PropertySource = Pick<Property, 'title' | 'description' | 'price' | 'url'>;
+
 @Injectable()
 export class PropertyMetadataExtractionService {
   constructor(@Inject(AI_PROVIDER) private readonly aiProvider: AiProvider) {}
 
   async extract(
-    property: Pick<Property, 'title' | 'description' | 'price' | 'url'>,
+    property: PropertySource,
     activeAreaNames: string[] = [],
   ): Promise<ExtractedPropertyMetadata> {
     const sourceText = this.buildSourceText(property);
@@ -49,8 +55,32 @@ export class PropertyMetadataExtractionService {
     return this.parseProviderResponse(rawText, sourceText);
   }
 
+  async extractMany(
+    properties: PropertySource[],
+    activeAreaNames: string[] = [],
+  ): Promise<ExtractedPropertyMetadata[]> {
+    if (properties.length === 0) {
+      return [];
+    }
+
+    const rawText = await this.aiProvider.generateText(
+      this.buildBulkPrompt(properties, activeAreaNames),
+      {
+        responseMimeType: 'application/json',
+      },
+    );
+
+    if (!rawText) {
+      throw new Error(
+        'AI provider returned no response for batch metadata extraction',
+      );
+    }
+
+    return this.parseBulkProviderResponse(rawText, properties);
+  }
+
   private buildPrompt(
-    property: Pick<Property, 'title' | 'description' | 'price' | 'url'>,
+    property: PropertySource,
     activeAreaNames: string[],
   ): string {
     return [
@@ -73,14 +103,49 @@ export class PropertyMetadataExtractionService {
     ].join('\n');
   }
 
-  private buildSourceText(
-    property: Pick<Property, 'title' | 'description' | 'price' | 'url'>,
-  ): string {
+  private buildSourceText(property: PropertySource): string {
     return [
       property.title ?? '',
       property.description ?? '',
       property.price ?? '',
       property.url ?? '',
+    ].join('\n');
+  }
+
+  private buildBulkPrompt(
+    properties: PropertySource[],
+    activeAreaNames: string[],
+  ): string {
+    const listings = properties
+      .map((property, index) => this.buildListingBlock(property, index))
+      .join('\n\n');
+
+    return [
+      'Extract normalized real-estate data from each listing below.',
+      'Return JSON only, as an array with exactly one object per listing, each in this exact shape:',
+      '{"index": number, "priceAmount": number | null, "priceCurrency": string | null, "squareMeters": number | null, "propertyType": string | null, "area": string | null}',
+      'Rules:',
+      '- index must match the listing\'s "Listing #" number exactly, so each result can be matched back to its listing.',
+      '- Return exactly one result object for every listing below, even when all of its fields are null.',
+      '- priceAmount must be an integer, without currency symbols or thousands separators.',
+      '- priceCurrency should be a 3-letter ISO code when confidently inferable, otherwise null.',
+      '- squareMeters may be decimal in the source, but return it as the nearest integer number of square meters.',
+      '- If both total and net area are present, prefer total area.',
+      `- propertyType must be exactly one of: ${PROPERTY_TYPES.join(', ')}.`,
+      `- area is the neighborhood/zone the listing is in. Known neighborhoods so far: ${activeAreaNames.join(', ') || '(none yet)'}. Return exactly one of these known values when the listing clearly matches one, or a new neighborhood name if the listing mentions one that isn't in that list, or null when no neighborhood can be confidently determined.`,
+      '- Use null when a value cannot be determined confidently.',
+      '',
+      listings,
+    ].join('\n');
+  }
+
+  private buildListingBlock(property: PropertySource, index: number): string {
+    return [
+      `Listing # ${index}`,
+      `Title: ${property.title ?? ''}`,
+      `Raw price: ${property.price ?? ''}`,
+      `Description: ${property.description ?? ''}`,
+      `URL: ${property.url ?? ''}`,
     ].join('\n');
   }
 
@@ -115,6 +180,66 @@ export class PropertyMetadataExtractionService {
         squareMeters: this.extractSquareMetersFromText(sourceText),
       };
     }
+  }
+
+  private parseBulkProviderResponse(
+    rawText: string,
+    properties: PropertySource[],
+  ): ExtractedPropertyMetadata[] {
+    const jsonMatch = rawText.match(/\[[\s\S]*\]/);
+
+    if (!jsonMatch) {
+      throw new Error(
+        'AI batch metadata response did not contain a JSON array',
+      );
+    }
+
+    let parsed: unknown;
+
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      throw new Error('AI batch metadata response was not valid JSON');
+    }
+
+    if (!Array.isArray(parsed)) {
+      throw new Error('AI batch metadata response was not a JSON array');
+    }
+
+    const itemsByIndex = new Map<number, RawExtractedPropertyMetadataItem>();
+
+    for (const item of parsed as unknown[]) {
+      if (
+        item &&
+        typeof item === 'object' &&
+        typeof (item as RawExtractedPropertyMetadataItem).index === 'number'
+      ) {
+        const typedItem = item as RawExtractedPropertyMetadataItem;
+        itemsByIndex.set(typedItem.index as number, typedItem);
+      }
+    }
+
+    return properties.map((property, index) => {
+      const item = itemsByIndex.get(index);
+
+      if (!item) {
+        throw new Error(
+          `AI batch metadata response is missing a result for listing index ${index}`,
+        );
+      }
+
+      const sourceText = this.buildSourceText(property);
+
+      return {
+        priceAmount: this.toPositiveIntegerOrNull(item.priceAmount),
+        priceCurrency: this.toCurrencyOrNull(item.priceCurrency),
+        squareMeters:
+          this.toRoundedPositiveIntegerOrNull(item.squareMeters) ??
+          this.extractSquareMetersFromText(sourceText),
+        propertyType: this.toPropertyTypeOrNull(item.propertyType),
+        areaName: this.toAreaNameOrNull(item.area),
+      };
+    });
   }
 
   private toPositiveIntegerOrNull(value: unknown): number | null {
