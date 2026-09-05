@@ -1,6 +1,6 @@
 import { Column, Entity, PrimaryColumn } from 'typeorm';
 
-export const AI_PROVIDER_TYPES = ['GEMINI', 'GROQ'] as const;
+export const AI_PROVIDER_TYPES = ['GEMINI', 'GEMINI_2', 'GROQ'] as const;
 
 export type AiProviderType = (typeof AI_PROVIDER_TYPES)[number];
 

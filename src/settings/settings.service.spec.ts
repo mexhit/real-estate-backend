@@ -80,6 +80,32 @@ describe('SettingsService', () => {
       expect(result).toBe('GROQ');
     });
 
+    it('persists a valid switch to the second Gemini account when its API key is configured', async () => {
+      configService.get.mockReturnValue('gemini-2-test-key');
+      repository.save.mockResolvedValue({
+        id: APP_SETTINGS_SINGLETON_ID,
+        aiProvider: 'GEMINI_2',
+      } as AppSettings);
+
+      const result = await service.updateAiProvider('GEMINI_2');
+
+      expect(configService.get).toHaveBeenCalledWith('GEMINI_API_KEY_2');
+      expect(repository.save).toHaveBeenCalledWith({
+        id: APP_SETTINGS_SINGLETON_ID,
+        aiProvider: 'GEMINI_2',
+      });
+      expect(result).toBe('GEMINI_2');
+    });
+
+    it('rejects a switch to the second Gemini account when its API key env var is missing', async () => {
+      configService.get.mockReturnValue(undefined);
+
+      await expect(service.updateAiProvider('GEMINI_2')).rejects.toThrow(
+        'Cannot switch to GEMINI_2: GEMINI_API_KEY_2 is not configured',
+      );
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
     it('rejects a switch when the target provider API key env var is missing', async () => {
       configService.get.mockReturnValue(undefined);
 

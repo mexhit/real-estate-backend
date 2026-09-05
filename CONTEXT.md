@@ -17,5 +17,5 @@ A named zone a Property Listing can be AI-resolved into (e.g. "Blloku", "Tirana 
 _Avoid_: Neighborhood, Zone
 
 **AI Provider**:
-The external AI service (Gemini or Groq) used to perform AI-resolution — metadata extraction and Area resolution are the same underlying call. Configurable system-wide; switching it takes effect immediately for new work. Distinct from the real-estate listing provider a Property Listing's `providerId` identifies.
+A configured account (API key, model, retry settings) used to perform AI-resolution — metadata extraction and Area resolution are the same underlying call. Multiple AI Providers can call the same underlying vendor API (e.g. `GEMINI` and `GEMINI_2` both call Gemini, with different API keys) — "AI Provider" identifies the configured account, not the vendor. Configurable system-wide; switching it takes effect immediately for new work. Distinct from the real-estate listing provider a Property Listing's `providerId` identifies.
 _Avoid_: Provider (ambiguous with the real-estate listing provider — always say "AI Provider")

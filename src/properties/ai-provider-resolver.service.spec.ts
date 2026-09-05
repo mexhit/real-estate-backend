@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SettingsService } from '../settings/settings.service';
 import { AI_PROVIDER } from './ai-provider.interface';
 import { AiProviderResolver } from './ai-provider-resolver.service';
-import { GeminiAiProviderService } from './gemini-ai-provider.service';
+import { GEMINI_2_PROVIDER, GEMINI_PROVIDER } from './gemini-ai-provider.service';
 import { GroqAiProviderService } from './groq-ai-provider.service';
 import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
 
@@ -11,11 +11,13 @@ describe('AiProviderResolver', () => {
   let extractionService: PropertyMetadataExtractionService;
   let settingsService: { getAiProvider: jest.Mock };
   let geminiAiProviderService: { generateText: jest.Mock };
+  let gemini2AiProviderService: { generateText: jest.Mock };
   let groqAiProviderService: { generateText: jest.Mock };
 
   beforeEach(async () => {
     settingsService = { getAiProvider: jest.fn() };
     geminiAiProviderService = { generateText: jest.fn() };
+    gemini2AiProviderService = { generateText: jest.fn() };
     groqAiProviderService = { generateText: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -23,7 +25,8 @@ describe('AiProviderResolver', () => {
         AiProviderResolver,
         PropertyMetadataExtractionService,
         { provide: SettingsService, useValue: settingsService },
-        { provide: GeminiAiProviderService, useValue: geminiAiProviderService },
+        { provide: GEMINI_PROVIDER, useValue: geminiAiProviderService },
+        { provide: GEMINI_2_PROVIDER, useValue: gemini2AiProviderService },
         { provide: GroqAiProviderService, useValue: groqAiProviderService },
         { provide: AI_PROVIDER, useExisting: AiProviderResolver },
       ],
@@ -48,6 +51,22 @@ describe('AiProviderResolver', () => {
       'prompt',
       { responseMimeType: 'application/json' },
     );
+    expect(gemini2AiProviderService.generateText).not.toHaveBeenCalled();
+    expect(groqAiProviderService.generateText).not.toHaveBeenCalled();
+  });
+
+  it('dispatches to the second Gemini account when the setting is GEMINI_2', async () => {
+    settingsService.getAiProvider.mockResolvedValue('GEMINI_2');
+    gemini2AiProviderService.generateText.mockResolvedValue('gemini-2-response');
+
+    const result = await resolver.generateText('prompt');
+
+    expect(result).toBe('gemini-2-response');
+    expect(gemini2AiProviderService.generateText).toHaveBeenCalledWith(
+      'prompt',
+      undefined,
+    );
+    expect(geminiAiProviderService.generateText).not.toHaveBeenCalled();
     expect(groqAiProviderService.generateText).not.toHaveBeenCalled();
   });
 

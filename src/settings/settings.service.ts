@@ -12,6 +12,7 @@ import {
 
 const API_KEY_ENV_VAR_BY_PROVIDER: Record<AiProviderType, string> = {
   GEMINI: 'GEMINI_API_KEY',
+  GEMINI_2: 'GEMINI_API_KEY_2',
   GROQ: 'GROQ_API_KEY',
 };
 

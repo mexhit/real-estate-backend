@@ -5,6 +5,34 @@ import { AiGenerationOptions, AiProvider } from './ai-provider.interface';
 type GoogleGenAiModule = typeof import('@google/genai');
 type GoogleGenAiClient = InstanceType<GoogleGenAiModule['GoogleGenAI']>;
 
+export const GEMINI_PROVIDER = 'GEMINI_PROVIDER';
+export const GEMINI_2_PROVIDER = 'GEMINI_2_PROVIDER';
+
+export type GeminiAiProviderConfig = {
+  apiKey: string | null;
+  model: string;
+  maxRetries: number;
+  retryDelayMs: number;
+};
+
+export function createGeminiAiProviderConfig(
+  configService: ConfigService,
+  apiKeyEnvVar: string,
+): GeminiAiProviderConfig {
+  return {
+    apiKey: configService.get<string>(apiKeyEnvVar) ?? null,
+    model: configService.get<string>('GEMINI_MODEL', 'gemini-3.5-flash-lite'),
+    maxRetries: Math.max(
+      0,
+      Number(configService.get<string>('GEMINI_MAX_RETRIES', '2')),
+    ),
+    retryDelayMs: Math.max(
+      0,
+      Number(configService.get<string>('GEMINI_RETRY_DELAY_MS', '1000')),
+    ),
+  };
+}
+
 @Injectable()
 export class GeminiAiProviderService implements AiProvider {
   private readonly logger = new Logger(GeminiAiProviderService.name);
@@ -15,20 +43,11 @@ export class GeminiAiProviderService implements AiProvider {
   private client: GoogleGenAiClient | null = null;
   private clientPromise: Promise<GoogleGenAiClient | null> | null = null;
 
-  constructor(private readonly configService: ConfigService) {
-    this.apiKey = this.configService.get<string>('GEMINI_API_KEY') ?? null;
-    this.model = this.configService.get<string>(
-      'GEMINI_MODEL',
-      'gemini-3.5-flash-lite',
-    );
-    this.maxRetries = Math.max(
-      0,
-      Number(this.configService.get<string>('GEMINI_MAX_RETRIES', '2')),
-    );
-    this.retryDelayMs = Math.max(
-      0,
-      Number(this.configService.get<string>('GEMINI_RETRY_DELAY_MS', '1000')),
-    );
+  constructor(config: GeminiAiProviderConfig) {
+    this.apiKey = config.apiKey;
+    this.model = config.model;
+    this.maxRetries = config.maxRetries;
+    this.retryDelayMs = config.retryDelayMs;
   }
 
   async generateText(
