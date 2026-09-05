@@ -10,7 +10,7 @@ describe('AreasController', () => {
     findOne: jest.Mock;
     create: jest.Mock;
     rename: jest.Mock;
-    softDelete: jest.Mock;
+    deleteAndReassign: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -19,7 +19,7 @@ describe('AreasController', () => {
       findOne: jest.fn(),
       create: jest.fn(),
       rename: jest.fn(),
-      softDelete: jest.fn(),
+      deleteAndReassign: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -71,10 +71,10 @@ describe('AreasController', () => {
     expect(areasService.rename).toHaveBeenCalledWith(1, 'Blloku');
   });
 
-  it('delegates soft-deleting an Area to AreasService', async () => {
-    areasService.softDelete.mockResolvedValue(undefined);
+  it('delegates delete-and-reassign to AreasService', async () => {
+    areasService.deleteAndReassign.mockResolvedValue(undefined);
 
-    await controller.softDelete(1);
-    expect(areasService.softDelete).toHaveBeenCalledWith(1);
+    await controller.deleteAndReassign(1, 2);
+    expect(areasService.deleteAndReassign).toHaveBeenCalledWith(1, 2);
   });
 });

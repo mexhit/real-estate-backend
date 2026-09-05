@@ -38,7 +38,10 @@ export class AreasController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  softDelete(@Param('id', ParseIntPipe) id: number) {
-    return this.areasService.softDelete(id);
+  deleteAndReassign(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('reassignToAreaId') reassignToAreaId: number,
+  ) {
+    return this.areasService.deleteAndReassign(id, reassignToAreaId);
   }
 }

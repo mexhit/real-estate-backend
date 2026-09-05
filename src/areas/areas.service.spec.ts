@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { IsNull } from 'typeorm';
 import { AreasService } from './areas.service';
 import { Area } from './area.entity';
+import { Property } from '../properties/property.entity';
 
 describe('AreasService', () => {
   let service: AreasService;
@@ -11,14 +12,25 @@ describe('AreasService', () => {
     find: jest.Mock;
     save: jest.Mock;
     update: jest.Mock;
+    manager: { transaction: jest.Mock };
   };
+  let transactionManager: { update: jest.Mock };
 
   beforeEach(async () => {
+    transactionManager = {
+      update: jest.fn(),
+    };
     repository = {
       findOne: jest.fn(),
       find: jest.fn(),
       save: jest.fn(),
       update: jest.fn(),
+      manager: {
+        transaction: jest.fn(
+          async (fn: (manager: typeof transactionManager) => unknown) =>
+            fn(transactionManager),
+        ),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -174,29 +186,87 @@ describe('AreasService', () => {
       );
       expect(repository.save).not.toHaveBeenCalled();
     });
+
+    it('throws when the new name is blank', async () => {
+      const area = { id: 1, name: 'Blloku', key: 'blloku' } as Area;
+      repository.findOne.mockResolvedValue(area);
+
+      await expect(service.rename(1, '   ')).rejects.toThrow(
+        'Area name is required',
+      );
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('throws a Conflict when the new name collides with another Area', async () => {
+      const area = { id: 1, name: 'Blloku', key: 'blloku' } as Area;
+      repository.findOne.mockResolvedValue(area);
+      repository.save.mockRejectedValue({ code: '23505' });
+
+      await expect(service.rename(1, 'Tirana e Re')).rejects.toThrow(
+        'An area with this name already exists',
+      );
+    });
   });
 
-  describe('softDelete', () => {
-    it('sets deletedAt without touching Property Listing FK references', async () => {
+  describe('deleteAndReassign', () => {
+    it('reassigns Property Listings to the target Area then soft-deletes the source Area, atomically', async () => {
       const area = { id: 1, name: 'Blloku' } as Area;
-      repository.findOne.mockResolvedValue(area);
-      repository.update.mockResolvedValue({ affected: 1 });
+      const targetArea = { id: 2, name: 'Tirana e Re' } as Area;
+      repository.findOne.mockImplementation(async ({ where }) => {
+        if (where.id === 1) return area;
+        if (where.id === 2) return targetArea;
+        return null;
+      });
 
-      await service.softDelete(1);
+      await service.deleteAndReassign(1, 2);
 
-      expect(repository.update).toHaveBeenCalledWith(
+      expect(repository.manager.transaction).toHaveBeenCalledTimes(1);
+      expect(transactionManager.update).toHaveBeenCalledWith(
+        Property,
+        { areaId: 1 },
+        { areaId: 2 },
+      );
+      expect(transactionManager.update).toHaveBeenCalledWith(
+        Area,
         { id: 1 },
         { deletedAt: expect.any(Date) },
       );
     });
 
-    it('throws when soft-deleting a missing Area', async () => {
+    it('throws when reassignToAreaId is missing', async () => {
+      await expect(
+        service.deleteAndReassign(1, undefined as unknown as number),
+      ).rejects.toThrow('reassignToAreaId is required');
+      expect(repository.manager.transaction).not.toHaveBeenCalled();
+    });
+
+    it('throws when reassignToAreaId is the same Area being deleted', async () => {
+      await expect(service.deleteAndReassign(1, 1)).rejects.toThrow(
+        'Cannot reassign properties to the Area being deleted',
+      );
+      expect(repository.manager.transaction).not.toHaveBeenCalled();
+    });
+
+    it('throws when the Area being deleted is missing', async () => {
       repository.findOne.mockResolvedValue(null);
 
-      await expect(service.softDelete(404)).rejects.toThrow(
+      await expect(service.deleteAndReassign(404, 2)).rejects.toThrow(
         'Area with id 404 not found',
       );
-      expect(repository.update).not.toHaveBeenCalled();
+      expect(repository.manager.transaction).not.toHaveBeenCalled();
+    });
+
+    it('throws when the target Area is missing', async () => {
+      const area = { id: 1, name: 'Blloku' } as Area;
+      repository.findOne.mockImplementation(async ({ where }) => {
+        if (where.id === 1) return area;
+        return null;
+      });
+
+      await expect(service.deleteAndReassign(1, 404)).rejects.toThrow(
+        'Area with id 404 not found',
+      );
+      expect(repository.manager.transaction).not.toHaveBeenCalled();
     });
   });
 });

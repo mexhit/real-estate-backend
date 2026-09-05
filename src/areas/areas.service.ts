@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { Area, normalizeAreaKey } from './area.entity';
+import { Property } from '../properties/property.entity';
 
 const POSTGRES_UNIQUE_VIOLATION = '23505';
 
@@ -82,15 +83,49 @@ export class AreasService {
     const area = await this.findOne(id);
     const trimmed = name.trim();
 
-    return this.areaRepository.save({
-      ...area,
-      name: trimmed,
-      key: normalizeAreaKey(trimmed),
-    });
+    if (!trimmed) {
+      throw new BadRequestException('Area name is required');
+    }
+
+    try {
+      return await this.areaRepository.save({
+        ...area,
+        name: trimmed,
+        key: normalizeAreaKey(trimmed),
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code === POSTGRES_UNIQUE_VIOLATION) {
+        throw new ConflictException('An area with this name already exists');
+      }
+
+      throw err;
+    }
   }
 
-  async softDelete(id: number): Promise<void> {
-    await this.findOne(id);
-    await this.areaRepository.update({ id }, { deletedAt: new Date() });
+  async deleteAndReassign(
+    id: number,
+    reassignToAreaId: number,
+  ): Promise<void> {
+    if (reassignToAreaId == null) {
+      throw new BadRequestException('reassignToAreaId is required');
+    }
+
+    if (reassignToAreaId === id) {
+      throw new BadRequestException(
+        'Cannot reassign properties to the Area being deleted',
+      );
+    }
+
+    const area = await this.findOne(id);
+    const targetArea = await this.findOne(reassignToAreaId);
+
+    await this.areaRepository.manager.transaction(async (manager) => {
+      await manager.update(
+        Property,
+        { areaId: area.id },
+        { areaId: targetArea.id },
+      );
+      await manager.update(Area, { id: area.id }, { deletedAt: new Date() });
+    });
   }
 }
