@@ -375,7 +375,9 @@ export class PropertiesService {
     return chunks;
   }
 
-  async updatePropertyFromAi(propertyId: number): Promise<Property> {
+  async updatePropertyFromAi(
+    propertyId: number,
+  ): Promise<Property & { areaName: string | null }> {
     const property = await this.propertyRepository.findOne({
       where: { id: propertyId },
     });
@@ -383,6 +385,8 @@ export class PropertiesService {
     if (!property) {
       throw new NotFoundException(`Property with id ${propertyId} not found`);
     }
+
+    let saved: Property;
 
     try {
       const activeAreaNames = await this.areasService.listActiveNames();
@@ -394,7 +398,7 @@ export class PropertiesService {
 
       const areaId = await this.resolveAreaId(extractedMetadata.areaName);
 
-      return this.propertyRepository.save({
+      saved = await this.propertyRepository.save({
         ...property,
         priceAmount: extractedMetadata.priceAmount,
         priceCurrency: extractedMetadata.priceCurrency,
@@ -412,12 +416,22 @@ export class PropertiesService {
         aiResponseError,
       );
 
-      return this.propertyRepository.save({
+      saved = await this.propertyRepository.save({
         ...property,
         aiResponseError,
         aiMetadataUpdatedAt: new Date(),
       });
     }
+
+    const withArea = await this.propertyRepository.findOne({
+      where: { id: saved.id },
+      relations: ['area'],
+    });
+
+    return {
+      ...(withArea ?? saved),
+      areaName: withArea?.area?.name ?? null,
+    };
   }
 
   async updatePropertiesFromAi(properties: Property[]): Promise<Property[]> {
