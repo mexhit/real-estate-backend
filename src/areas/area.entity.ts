@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { numericColumnTransformer } from './numeric-column.transformer';
 
 export function normalizeAreaKey(name: string): string {
   return name
@@ -40,4 +41,20 @@ export class Area {
 
   @Column({ type: 'timestamptz', nullable: true })
   deletedAt: Date | null;
+
+  @Column({
+    type: 'numeric',
+    nullable: true,
+    transformer: numericColumnTransformer,
+  })
+  avgPricePerSqm: number | null;
+
+  @Column({ nullable: true })
+  avgPriceCurrency: string | null;
+
+  @Column({ type: 'integer', nullable: true })
+  snapshotPropertyCount: number | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  snapshotAt: Date | null;
 }
