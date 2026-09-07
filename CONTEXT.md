@@ -21,8 +21,8 @@ A named zone a Property Listing can be AI-resolved into (e.g. "Blloku", "Tirana 
 _Avoid_: Neighborhood, Zone
 
 **Area Price Snapshot**:
-A record of the average price-per-m² computed for an Area during one run of the weekly pricing job, together with how many Property Listings (via their latest Capture in the 30-day window) fed the calculation. Each run produces one Snapshot per Area, forming a running history.
-_Avoid_: Area stats, price history entry
+A record of the average price-per-m² computed for an Area during one run of the pricing job, together with how many Property Listings (via their latest Capture in the 30-day window) fed the calculation. The pricing job runs weekly on schedule, but can also be triggered manually (e.g. for testing); a manually-triggered run is a real run — it produces a real Snapshot and updates the Area's displayed price exactly like a scheduled run, with no distinction recorded between the two. Each run produces one Snapshot per Area, forming a running history.
+_Avoid_: Area stats, price history entry, weekly pricing job (it isn't only weekly anymore)
 
 **Dominant Currency**:
 The currency shared by the largest number of eligible Property Listings feeding one Area Price Snapshot. Listings priced in a different currency, or with no currency, are excluded from that Snapshot.

@@ -12,6 +12,6 @@ import { Property } from '../properties/property.entity';
   imports: [TypeOrmModule.forFeature([Area, AreaPriceSnapshot, Property])],
   controllers: [AreasController],
   providers: [AreasService, AreaPriceSnapshotsService, AreaPriceSnapshotJob],
-  exports: [AreasService],
+  exports: [AreasService, AreaPriceSnapshotJob],
 })
 export class AreasModule {}

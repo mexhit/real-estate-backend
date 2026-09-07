@@ -3,6 +3,7 @@ import { AreaPriceSnapshotJob } from './area-price-snapshot.job';
 import { AreasService } from './areas.service';
 import { AreaPriceSnapshotsService } from './area-price-snapshots.service';
 import { Area } from './area.entity';
+import { AreaPriceSnapshot } from './area-price-snapshot.entity';
 
 describe('AreaPriceSnapshotJob', () => {
   let job: AreaPriceSnapshotJob;
@@ -25,34 +26,61 @@ describe('AreaPriceSnapshotJob', () => {
     warnSpy.mockRestore();
   });
 
-  it('calls the service once per active Area', async () => {
-    const areas = [{ id: 1 }, { id: 2 }] as Area[];
-    areasService.listActive.mockResolvedValue(areas);
-    areaPriceSnapshotsService.computeSnapshotForArea.mockResolvedValue(
-      undefined,
-    );
+  function snapshot(
+    overrides: Partial<AreaPriceSnapshot> = {},
+  ): AreaPriceSnapshot {
+    return {
+      id: 1,
+      areaId: 1,
+      ranAt: new Date(),
+      avgPricePerSqm: 1000,
+      currency: 'EUR',
+      propertyCount: 5,
+      excludedCount: 1,
+      ...overrides,
+    } as AreaPriceSnapshot;
+  }
 
-    await job.computeWeeklySnapshots();
+  it('calls the service once per active Area and reports per-area results', async () => {
+    const areas = [
+      { id: 1, name: 'Blloku' },
+      { id: 2, name: 'Tirana e Re' },
+    ] as Area[];
+    areasService.listActive.mockResolvedValue(areas);
+    areaPriceSnapshotsService.computeSnapshotForArea
+      .mockResolvedValueOnce(snapshot({ propertyCount: 5, excludedCount: 1 }))
+      .mockResolvedValueOnce(snapshot({ propertyCount: 3, excludedCount: 0 }));
+
+    const result = await job.run();
 
     expect(
       areaPriceSnapshotsService.computeSnapshotForArea,
     ).toHaveBeenCalledTimes(2);
-    expect(
-      areaPriceSnapshotsService.computeSnapshotForArea,
-    ).toHaveBeenCalledWith(areas[0]);
-    expect(
-      areaPriceSnapshotsService.computeSnapshotForArea,
-    ).toHaveBeenCalledWith(areas[1]);
+    expect(result).toEqual({
+      status: 'completed',
+      areas: [
+        { areaId: 1, areaName: 'Blloku', propertyCount: 5, excludedCount: 1 },
+        {
+          areaId: 2,
+          areaName: 'Tirana e Re',
+          propertyCount: 3,
+          excludedCount: 0,
+        },
+      ],
+    });
   });
 
   it('does not let one Area throwing prevent the others from being processed', async () => {
-    const areas = [{ id: 1 }, { id: 2 }] as Area[];
+    const areas = [
+      { id: 1, name: 'Blloku' },
+      { id: 2, name: 'Tirana e Re' },
+    ] as Area[];
     areasService.listActive.mockResolvedValue(areas);
     areaPriceSnapshotsService.computeSnapshotForArea
       .mockRejectedValueOnce(new Error('boom'))
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce(snapshot({ propertyCount: 3, excludedCount: 0 }));
 
-    await job.computeWeeklySnapshots();
+    const result = await job.run();
 
     expect(
       areaPriceSnapshotsService.computeSnapshotForArea,
@@ -61,15 +89,60 @@ describe('AreaPriceSnapshotJob', () => {
       'Failed to compute Area price snapshot for Area 1',
       expect.stringContaining('boom'),
     );
+    expect(result).toEqual({
+      status: 'completed',
+      areas: [
+        { areaId: 1, areaName: 'Blloku', error: 'boom' },
+        {
+          areaId: 2,
+          areaName: 'Tirana e Re',
+          propertyCount: 3,
+          excludedCount: 0,
+        },
+      ],
+    });
   });
 
   it('does nothing when there are no active Areas', async () => {
     areasService.listActive.mockResolvedValue([]);
 
-    await job.computeWeeklySnapshots();
+    const result = await job.run();
 
     expect(
       areaPriceSnapshotsService.computeSnapshotForArea,
     ).not.toHaveBeenCalled();
+    expect(result).toEqual({ status: 'completed', areas: [] });
+  });
+
+  it('skips the run when a run is already in progress', async () => {
+    let resolveListActive!: (areas: Area[]) => void;
+    areasService.listActive.mockImplementation(
+      () =>
+        new Promise<Area[]>((resolve) => {
+          resolveListActive = resolve;
+        }),
+    );
+
+    const firstRun = job.run();
+    const secondRun = await job.run();
+
+    expect(secondRun).toEqual({
+      status: 'skipped',
+      reason: 'already running',
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Skipping Area price snapshot run because it is still running',
+    );
+
+    resolveListActive([]);
+    await firstRun;
+  });
+
+  it('computeWeeklySnapshots delegates to run()', async () => {
+    areasService.listActive.mockResolvedValue([]);
+
+    await job.computeWeeklySnapshots();
+
+    expect(areasService.listActive).toHaveBeenCalledTimes(1);
   });
 });
