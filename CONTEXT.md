@@ -28,6 +28,10 @@ _Avoid_: Area stats, price history entry, weekly pricing job (it isn't only week
 The currency shared by the largest number of eligible Property Listings feeding one Area Price Snapshot. Listings priced in a different currency, or with no currency, are excluded from that Snapshot.
 _Avoid_: Primary currency, base currency
 
+**Price Position**:
+A Property Listing's price-per-m² classified against its Area's cached Area Price Snapshot average, as `Above Area Average`, `Below Area Average`, or `In Line With Area Average` (within a ±5% band). Computed only when the Property Listing's `priceCurrency` matches the Area's `avgPriceCurrency` and the Area's snapshot was built from at least 5 Property Listings; otherwise there is no Price Position. Computed server-side so the band and minimum-sample rules stay in one place.
+_Avoid_: Price indicator, relative price, over/underpriced
+
 **AI Provider**:
 A configured account (API key, model, retry settings) used to perform AI-resolution — metadata extraction and Area resolution are the same underlying call. Multiple AI Providers can call the same underlying vendor API (e.g. `GEMINI` and `GEMINI_2` both call Gemini, with different API keys) — "AI Provider" identifies the configured account, not the vendor. Configurable system-wide; switching it takes effect immediately for new work. Distinct from the real-estate listing provider a Property Listing's `providerId` identifies.
 _Avoid_: Provider (ambiguous with the real-estate listing provider — always say "AI Provider")

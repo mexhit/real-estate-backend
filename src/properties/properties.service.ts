@@ -19,6 +19,7 @@ import {
   NewPropertySeriesRow,
 } from './new-properties-series.helper';
 import { AreasService } from '../areas/areas.service';
+import { computePricePosition } from './price-position';
 
 export type { NewPropertySeriesPoint } from './new-properties-series.helper';
 
@@ -123,6 +124,9 @@ export class PropertiesService {
        SELECT
          property.*,
          area.name as "areaName",
+         area."avgPricePerSqm" as "areaAvgPricePerSqm",
+         area."avgPriceCurrency" as "areaAvgPriceCurrency",
+         area."snapshotPropertyCount" as "areaSnapshotPropertyCount",
          COUNT(*) OVER (PARTITION BY property."providerId") as provider_property_count,
          ROW_NUMBER() OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as rn,
          pcc.has_price_changed,
@@ -174,15 +178,43 @@ export class PropertiesService {
       this.propertyRepository.query(countQuery, whereParams),
     ]);
 
-    const enrichedData = data.map((entity) => ({
-      ...entity,
-      providerPropertyCount: Number(entity.provider_property_count || 0),
-      hasPriceChanged: entity.has_price_changed,
-      firstPostedAt: entity.first_post,
-      lastPostedAt: entity.last_post,
-      firstPrice: entity.first_price,
-      lastPrice: entity.last_price,
-    }));
+    const enrichedData = data.map((entity) => {
+      const areaAvgPricePerSqm =
+        entity.areaAvgPricePerSqm != null
+          ? Number(entity.areaAvgPricePerSqm)
+          : null;
+      const areaSnapshotPropertyCount =
+        entity.areaSnapshotPropertyCount != null
+          ? Number(entity.areaSnapshotPropertyCount)
+          : null;
+      const { pricePosition, pricePositionPercentage } = computePricePosition(
+        {
+          priceAmount: entity.priceAmount,
+          priceCurrency: entity.priceCurrency,
+          squareMeters: entity.squareMeters,
+        },
+        {
+          avgPricePerSqm: areaAvgPricePerSqm,
+          avgPriceCurrency: entity.areaAvgPriceCurrency,
+          snapshotPropertyCount: areaSnapshotPropertyCount,
+        },
+      );
+
+      return {
+        ...entity,
+        providerPropertyCount: Number(entity.provider_property_count || 0),
+        hasPriceChanged: entity.has_price_changed,
+        firstPostedAt: entity.first_post,
+        lastPostedAt: entity.last_post,
+        firstPrice: entity.first_price,
+        lastPrice: entity.last_price,
+        areaAvgPricePerSqm,
+        areaAvgPriceCurrency: entity.areaAvgPriceCurrency,
+        areaSnapshotPropertyCount,
+        pricePosition,
+        pricePositionPercentage,
+      };
+    });
 
     await this.markPropertiesAsSeen(enrichedData.map((p) => p.id));
 
@@ -241,10 +273,38 @@ export class PropertiesService {
       take: limit,
       order: { id: 'DESC' },
       where: whereCondition,
+      relations: ['area'],
+    });
+
+    const enrichedData = data.map(({ area, ...property }) => {
+      const { pricePosition, pricePositionPercentage } = computePricePosition(
+        {
+          priceAmount: property.priceAmount,
+          priceCurrency: property.priceCurrency,
+          squareMeters: property.squareMeters,
+        },
+        area
+          ? {
+              avgPricePerSqm: area.avgPricePerSqm,
+              avgPriceCurrency: area.avgPriceCurrency,
+              snapshotPropertyCount: area.snapshotPropertyCount,
+            }
+          : null,
+      );
+
+      return {
+        ...property,
+        areaName: area?.name ?? null,
+        areaAvgPricePerSqm: area?.avgPricePerSqm ?? null,
+        areaAvgPriceCurrency: area?.avgPriceCurrency ?? null,
+        areaSnapshotPropertyCount: area?.snapshotPropertyCount ?? null,
+        pricePosition,
+        pricePositionPercentage,
+      };
     });
 
     return {
-      data,
+      data: enrichedData,
       total,
       page,
       limit,

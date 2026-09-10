@@ -14,6 +14,7 @@ describe('PropertiesService', () => {
     save: jest.Mock;
     findOne: jest.Mock;
     find: jest.Mock;
+    findAndCount: jest.Mock;
     query: jest.Mock;
     update: jest.Mock;
   };
@@ -26,6 +27,7 @@ describe('PropertiesService', () => {
       save: jest.fn(),
       findOne: jest.fn(),
       find: jest.fn(),
+      findAndCount: jest.fn(),
       query: jest.fn(),
       update: jest.fn(),
     };
@@ -754,6 +756,125 @@ describe('PropertiesService', () => {
       [10, 0],
     );
     expect(result.data[0]).toMatchObject({ areaName: 'Blloku' });
+  });
+
+  it('selects the area price snapshot fields needed to classify a Price Position', async () => {
+    repository.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: '0' }]);
+    repository.update.mockResolvedValue({ affected: 0 });
+
+    await service.getProperties(1, 10, {});
+
+    expect(repository.query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('area."avgPricePerSqm" as "areaAvgPricePerSqm"'),
+      [10, 0],
+    );
+  });
+
+  it('classifies a listed property as above the area average', async () => {
+    repository.query
+      .mockResolvedValueOnce([
+        {
+          id: 1,
+          priceAmount: 111000,
+          priceCurrency: 'EUR',
+          squareMeters: 100,
+          areaAvgPricePerSqm: '1000',
+          areaAvgPriceCurrency: 'EUR',
+          areaSnapshotPropertyCount: '5',
+        },
+      ])
+      .mockResolvedValueOnce([{ total: '1' }]);
+    repository.update.mockResolvedValue({ affected: 0 });
+
+    const result = await service.getProperties(1, 10, {});
+
+    expect(result.data[0]).toMatchObject({
+      pricePosition: 'above',
+      pricePositionPercentage: 11,
+      areaAvgPricePerSqm: 1000,
+      areaSnapshotPropertyCount: 5,
+    });
+  });
+
+  it('omits the Price Position when the area has no eligible snapshot yet', async () => {
+    repository.query
+      .mockResolvedValueOnce([
+        {
+          id: 1,
+          priceAmount: 111000,
+          priceCurrency: 'EUR',
+          squareMeters: 100,
+          areaAvgPricePerSqm: null,
+          areaAvgPriceCurrency: null,
+          areaSnapshotPropertyCount: null,
+        },
+      ])
+      .mockResolvedValueOnce([{ total: '1' }]);
+    repository.update.mockResolvedValue({ affected: 0 });
+
+    const result = await service.getProperties(1, 10, {});
+
+    expect(result.data[0]).toMatchObject({
+      pricePosition: null,
+      pricePositionPercentage: null,
+    });
+  });
+
+  describe('getPropertiesByProviderId', () => {
+    it('joins the area relation and classifies each property Price Position', async () => {
+      repository.findAndCount.mockResolvedValue([
+        [
+          {
+            id: 1,
+            providerId: 'provider-1',
+            priceAmount: 89000,
+            priceCurrency: 'EUR',
+            squareMeters: 100,
+            area: {
+              name: 'Blloku',
+              avgPricePerSqm: 1000,
+              avgPriceCurrency: 'EUR',
+              snapshotPropertyCount: 5,
+            },
+          },
+          {
+            id: 2,
+            providerId: 'provider-1',
+            priceAmount: 100000,
+            priceCurrency: 'EUR',
+            squareMeters: 100,
+            area: null,
+          },
+        ],
+        2,
+      ]);
+
+      const result = await service.getPropertiesByProviderId(
+        1,
+        10,
+        'provider-1',
+      );
+
+      expect(repository.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ relations: ['area'] }),
+      );
+      expect(result.data[0]).toMatchObject({
+        areaName: 'Blloku',
+        areaAvgPricePerSqm: 1000,
+        areaSnapshotPropertyCount: 5,
+        pricePosition: 'below',
+        pricePositionPercentage: -11,
+      });
+      expect(result.data[0]).not.toHaveProperty('area');
+      expect(result.data[1]).toMatchObject({
+        areaName: null,
+        pricePosition: null,
+        pricePositionPercentage: null,
+      });
+    });
   });
 
   describe('getNewPropertiesSeries', () => {
