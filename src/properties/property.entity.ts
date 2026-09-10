@@ -25,6 +25,26 @@ export const PROPERTY_TYPES = [
 
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
 
+const RESIDENTIAL_PROPERTY_TYPES = [
+  'APARTMENT_1_1',
+  'APARTMENT_2_1',
+  'APARTMENT_3_1',
+  'STUDIO',
+  'PRIVATE_HOUSE',
+  'VILLA',
+] as const satisfies readonly PropertyType[];
+
+export function isResidentialPropertyType(
+  propertyType: PropertyType | null,
+): boolean {
+  return (
+    propertyType == null ||
+    (RESIDENTIAL_PROPERTY_TYPES as readonly PropertyType[]).includes(
+      propertyType,
+    )
+  );
+}
+
 export function normalizePropertyType(value: unknown): PropertyType | null {
   if (typeof value !== 'string') {
     return null;

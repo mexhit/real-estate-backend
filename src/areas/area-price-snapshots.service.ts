@@ -3,7 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import { Area } from './area.entity';
 import { AreaPriceSnapshot } from './area-price-snapshot.entity';
-import { Property } from '../properties/property.entity';
+import {
+  isResidentialPropertyType,
+  Property,
+} from '../properties/property.entity';
 
 const SNAPSHOT_WINDOW_DAYS = 30;
 
@@ -101,7 +104,11 @@ export class AreaPriceSnapshotsService {
       where: { areaId: area.id, createdAt: MoreThanOrEqual(windowStart) },
     });
 
-    const deduped = dedupeToLatestCapturePerListing(capturesInWindow);
+    const residentialCaptures = capturesInWindow.filter((property) =>
+      isResidentialPropertyType(property.propertyType),
+    );
+
+    const deduped = dedupeToLatestCapturePerListing(residentialCaptures);
     const dominantCurrency = determineDominantCurrency(deduped);
     const eligible = deduped.filter((property) =>
       isEligible(property, dominantCurrency),

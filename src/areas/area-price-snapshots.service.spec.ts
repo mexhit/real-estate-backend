@@ -199,6 +199,53 @@ describe('AreaPriceSnapshotsService', () => {
     );
   });
 
+  it('excludes non-Residential Property Types from the average, but includes untyped listings', async () => {
+    propertyRepository.find.mockResolvedValue([
+      makeProperty({
+        providerId: 'p1',
+        propertyType: 'APARTMENT_1_1',
+        priceAmount: 100000,
+        squareMeters: 100,
+      }), // 1000/m2, residential
+      makeProperty({
+        providerId: 'p2',
+        propertyType: null,
+        priceAmount: 100000,
+        squareMeters: 100,
+      }), // 1000/m2, untyped -> treated as residential
+      makeProperty({
+        providerId: 'p3',
+        propertyType: 'SHOP',
+        priceAmount: 400000,
+        squareMeters: 100,
+      }), // 4000/m2, excluded
+      makeProperty({
+        providerId: 'p4',
+        propertyType: 'OFFICE',
+        priceAmount: 400000,
+        squareMeters: 100,
+      }), // excluded
+      makeProperty({
+        providerId: 'p5',
+        propertyType: 'LAND',
+        priceAmount: 400000,
+        squareMeters: 100,
+      }), // excluded
+      makeProperty({
+        providerId: 'p6',
+        propertyType: 'PARKING',
+        priceAmount: 400000,
+        squareMeters: 100,
+      }), // excluded
+    ]);
+
+    const snapshot = await service.computeSnapshotForArea(area);
+
+    expect(snapshot.avgPricePerSqm).toBe(1000);
+    expect(snapshot.propertyCount).toBe(2);
+    expect(snapshot.excludedCount).toBe(4);
+  });
+
   it('overwrites denormalized Area columns to null/zero when there is no eligible data', async () => {
     propertyRepository.find.mockResolvedValue([]);
 
