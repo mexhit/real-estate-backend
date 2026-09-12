@@ -1005,6 +1005,58 @@ describe('PropertiesService', () => {
       });
     });
 
+    it('allows editing the raw displayed price string', async () => {
+      const property = {
+        id: 25,
+        title: 'Title',
+        description: 'Description',
+        price: '100,000 €',
+        manuallyEditedFields: [],
+      } as unknown as Property;
+
+      repository.findOne.mockResolvedValue(property);
+      repository.save.mockImplementation(async (payload) => payload);
+
+      const updated = await service.updateProperty(
+        25,
+        { price: '  110,000 €  ' },
+        7,
+      );
+
+      expect(repository.save).toHaveBeenCalledWith({
+        ...property,
+        price: '110,000 €',
+        manuallyEditedFields: ['price'],
+      });
+      expect(editHistoryRepository.insert).toHaveBeenCalledWith([
+        {
+          propertyId: 25,
+          userId: 7,
+          field: 'price',
+          oldValue: '100,000 €',
+          newValue: '110,000 €',
+        },
+      ]);
+      expect(updated).toMatchObject({ price: '110,000 €' });
+    });
+
+    it('rejects a blank price', async () => {
+      const property = {
+        id: 26,
+        title: 'Title',
+        description: 'Description',
+        price: '100,000 €',
+        manuallyEditedFields: [],
+      } as unknown as Property;
+
+      repository.findOne.mockResolvedValue(property);
+
+      await expect(
+        service.updateProperty(26, { price: '   ' }, 7),
+      ).rejects.toThrow('Price is required');
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
     it('does not touch already-locked fields again if resubmitted with the same value', async () => {
       const property = {
         id: 21,

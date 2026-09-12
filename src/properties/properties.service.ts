@@ -32,6 +32,7 @@ export type { NewPropertySeriesPoint } from './new-properties-series.helper';
 const MANUALLY_EDITABLE_FIELDS = [
   'title',
   'description',
+  'price',
   'priceAmount',
   'priceCurrency',
   'squareMeters',
@@ -558,6 +559,13 @@ export class PropertiesService {
       case 'description': {
         if (typeof value !== 'string') {
           throw new BadRequestException('Description must be text');
+        }
+
+        return value.trim();
+      }
+      case 'price': {
+        if (typeof value !== 'string' || value.trim().length === 0) {
+          throw new BadRequestException('Price is required');
         }
 
         return value.trim();
