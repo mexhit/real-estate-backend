@@ -1,87 +1,35 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThanOrEqual, Repository } from 'typeorm';
+import { Between, MoreThanOrEqual, Repository } from 'typeorm';
 import { Area } from './area.entity';
 import { AreaPriceSnapshot } from './area-price-snapshot.entity';
+import { Property } from '../properties/property.entity';
+import { computePricePosition } from '../properties/price-position';
 import {
-  isResidentialPropertyType,
-  Property,
-} from '../properties/property.entity';
+  dedupeToLatestCapturePerListing,
+  determineDominantCurrency,
+  filterResidential,
+  getSnapshotWindowStart,
+  isEligibleContributingListing,
+  meanPricePerSqm,
+} from './contributing-listings.util';
 
-const SNAPSHOT_WINDOW_DAYS = 30;
-
-function dedupeToLatestCapturePerListing(properties: Property[]): Property[] {
-  const latestByProviderId = new Map<string, Property>();
-
-  for (const property of properties) {
-    const current = latestByProviderId.get(property.providerId);
-
-    if (!current || property.createdAt > current.createdAt) {
-      latestByProviderId.set(property.providerId, property);
-    }
-  }
-
-  return [...latestByProviderId.values()];
-}
-
-function determineDominantCurrency(properties: Property[]): string | null {
-  const counts = new Map<string, number>();
-
-  for (const property of properties) {
-    if (property.priceCurrency == null) {
-      continue;
-    }
-
-    counts.set(
-      property.priceCurrency,
-      (counts.get(property.priceCurrency) ?? 0) + 1,
-    );
-  }
-
-  let dominantCurrency: string | null = null;
-  let dominantCount = 0;
-
-  for (const [currency, count] of counts) {
-    if (count > dominantCount) {
-      dominantCurrency = currency;
-      dominantCount = count;
-    }
-  }
-
-  return dominantCurrency;
-}
-
-type EligibleProperty = Property & {
-  priceAmount: number;
-  squareMeters: number;
-};
-
-function isEligible(
-  property: Property,
-  dominantCurrency: string | null,
-): property is EligibleProperty {
-  if (property.priceAmount == null || property.priceAmount <= 0) {
-    return false;
-  }
-
-  if (property.squareMeters == null || property.squareMeters <= 0) {
-    return false;
-  }
-
-  if (property.priceCurrency == null) {
-    return false;
-  }
-
-  return property.priceCurrency === dominantCurrency;
-}
-
-function meanPricePerSqm(properties: EligibleProperty[]): number {
-  const total = properties.reduce(
-    (sum, property) => sum + property.priceAmount / property.squareMeters,
-    0,
-  );
-
-  return total / properties.length;
+export interface ContributingListingsPage {
+  summary: {
+    areaId: number;
+    areaName: string;
+    avgPricePerSqm: number | null;
+    avgPriceCurrency: string | null;
+    propertyCount: number;
+    windowStart: Date | null;
+    windowEnd: Date | null;
+    highlightedListingIncluded: boolean | null;
+  };
+  data: unknown[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 @Injectable()
@@ -96,25 +44,20 @@ export class AreaPriceSnapshotsService {
   ) {}
 
   async computeSnapshotForArea(area: Area): Promise<AreaPriceSnapshot> {
-    const windowStart = new Date(
-      Date.now() - SNAPSHOT_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-    );
+    const ranAt = new Date();
+    const windowStart = getSnapshotWindowStart(ranAt);
 
     const capturesInWindow = await this.propertyRepository.find({
       where: { areaId: area.id, createdAt: MoreThanOrEqual(windowStart) },
     });
 
-    const residentialCaptures = capturesInWindow.filter((property) =>
-      isResidentialPropertyType(property.propertyType),
-    );
-
+    const residentialCaptures = filterResidential(capturesInWindow);
     const deduped = dedupeToLatestCapturePerListing(residentialCaptures);
     const dominantCurrency = determineDominantCurrency(deduped);
     const eligible = deduped.filter((property) =>
-      isEligible(property, dominantCurrency),
+      isEligibleContributingListing(property, dominantCurrency),
     );
 
-    const ranAt = new Date();
     const propertyCount = eligible.length;
     const avgPricePerSqm = propertyCount > 0 ? meanPricePerSqm(eligible) : null;
     const currency = propertyCount > 0 ? dominantCurrency : null;
@@ -140,5 +83,91 @@ export class AreaPriceSnapshotsService {
     );
 
     return snapshot;
+  }
+
+  async getContributingListings(
+    areaId: number,
+    page: number,
+    limit: number,
+    highlightProviderId?: string,
+  ): Promise<ContributingListingsPage> {
+    const area = await this.areaRepository.findOne({ where: { id: areaId } });
+
+    if (!area) {
+      throw new NotFoundException(`Area with id ${areaId} not found`);
+    }
+
+    const windowEnd = area.snapshotAt;
+    const windowStart = windowEnd ? getSnapshotWindowStart(windowEnd) : null;
+
+    const capturesInWindow =
+      windowEnd && windowStart
+        ? await this.propertyRepository.find({
+            where: {
+              areaId: area.id,
+              createdAt: Between(windowStart, windowEnd),
+            },
+          })
+        : [];
+
+    const residentialCaptures = filterResidential(capturesInWindow);
+    const deduped = dedupeToLatestCapturePerListing(residentialCaptures);
+    const contributingListings = deduped
+      .filter((property) =>
+        isEligibleContributingListing(property, area.avgPriceCurrency),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    const total = contributingListings.length;
+    const start = (page - 1) * limit;
+    const pageOfListings = contributingListings.slice(start, start + limit);
+    const highlightedListingIncluded = highlightProviderId
+      ? contributingListings.some(
+          (property) => property.providerId === highlightProviderId,
+        )
+      : null;
+
+    const enrichedData = pageOfListings.map((property) => {
+      const { pricePosition, pricePositionPercentage } = computePricePosition(
+        {
+          priceAmount: property.priceAmount,
+          priceCurrency: property.priceCurrency,
+          squareMeters: property.squareMeters,
+        },
+        {
+          avgPricePerSqm: area.avgPricePerSqm,
+          avgPriceCurrency: area.avgPriceCurrency,
+          snapshotPropertyCount: area.snapshotPropertyCount,
+        },
+      );
+
+      return {
+        ...property,
+        areaName: area.name,
+        areaAvgPricePerSqm: area.avgPricePerSqm,
+        areaAvgPriceCurrency: area.avgPriceCurrency,
+        areaSnapshotPropertyCount: area.snapshotPropertyCount,
+        pricePosition,
+        pricePositionPercentage,
+      };
+    });
+
+    return {
+      summary: {
+        areaId: area.id,
+        areaName: area.name,
+        avgPricePerSqm: area.avgPricePerSqm,
+        avgPriceCurrency: area.avgPriceCurrency,
+        propertyCount: total,
+        windowStart,
+        windowEnd,
+        highlightedListingIncluded,
+      },
+      data: enrichedData,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
   }
 }

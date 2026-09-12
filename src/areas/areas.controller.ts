@@ -9,12 +9,17 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { AreasService } from './areas.service';
+import { AreaPriceSnapshotsService } from './area-price-snapshots.service';
 
 @Controller('areas')
 export class AreasController {
-  constructor(private readonly areasService: AreasService) {}
+  constructor(
+    private readonly areasService: AreasService,
+    private readonly areaPriceSnapshotsService: AreaPriceSnapshotsService,
+  ) {}
 
   @Get()
   listActive() {
@@ -24,6 +29,24 @@ export class AreasController {
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.areasService.findOne(id);
+  }
+
+  @Get(':id/contributing-listings')
+  getContributingListings(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('highlightProviderId') highlightProviderId?: string,
+  ) {
+    page = Math.max(1, Number(page));
+    limit = Math.min(Math.max(1, Number(limit)), 100);
+
+    return this.areaPriceSnapshotsService.getContributingListings(
+      id,
+      page,
+      limit,
+      highlightProviderId,
+    );
   }
 
   @Post()

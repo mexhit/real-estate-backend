@@ -33,7 +33,7 @@ describe('AreaPriceSnapshotsService', () => {
   let service: AreaPriceSnapshotsService;
   let propertyRepository: { find: jest.Mock };
   let snapshotRepository: { save: jest.Mock };
-  let areaRepository: { update: jest.Mock };
+  let areaRepository: { update: jest.Mock; findOne: jest.Mock };
   const area = { id: 1, name: 'Blloku' } as Area;
 
   beforeEach(async () => {
@@ -41,7 +41,7 @@ describe('AreaPriceSnapshotsService', () => {
     snapshotRepository = {
       save: jest.fn().mockImplementation(async (payload) => payload),
     };
-    areaRepository = { update: jest.fn() };
+    areaRepository = { update: jest.fn(), findOne: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -260,5 +260,151 @@ describe('AreaPriceSnapshotsService', () => {
         snapshotAt: expect.any(Date),
       },
     );
+  });
+
+  describe('getContributingListings', () => {
+    const snapshotAt = new Date('2026-09-10T00:00:00Z');
+    const snapshottedArea = {
+      id: 1,
+      name: 'Blloku',
+      avgPricePerSqm: 2000,
+      avgPriceCurrency: 'EUR',
+      snapshotPropertyCount: 2,
+      snapshotAt,
+    } as Area;
+
+    it('throws NotFoundException when the Area does not exist', async () => {
+      areaRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.getContributingListings(1, 1, 10)).rejects.toThrow(
+        'Area with id 1 not found',
+      );
+    });
+
+    it('returns an empty page when the Area has never had a Snapshot run', async () => {
+      areaRepository.findOne.mockResolvedValue({
+        id: 1,
+        name: 'Blloku',
+        avgPricePerSqm: null,
+        avgPriceCurrency: null,
+        snapshotPropertyCount: null,
+        snapshotAt: null,
+      } as Area);
+
+      const result = await service.getContributingListings(1, 1, 10);
+
+      expect(propertyRepository.find).not.toHaveBeenCalled();
+      expect(result.data).toEqual([]);
+      expect(result.total).toBe(0);
+      expect(result.summary.windowStart).toBeNull();
+      expect(result.summary.windowEnd).toBeNull();
+    });
+
+    it('reconstructs exactly the Contributing Listings for the Area’s current Snapshot Window', async () => {
+      areaRepository.findOne.mockResolvedValue(snapshottedArea);
+      propertyRepository.find.mockResolvedValue([
+        makeProperty({
+          providerId: 'p1',
+          propertyType: 'APARTMENT_1_1',
+          priceAmount: 100000,
+          squareMeters: 100,
+          priceCurrency: 'EUR',
+          createdAt: new Date('2026-09-05T00:00:00Z'),
+        }),
+        makeProperty({
+          providerId: 'p2',
+          propertyType: 'SHOP',
+          priceAmount: 400000,
+          squareMeters: 100,
+          priceCurrency: 'EUR',
+          createdAt: new Date('2026-09-06T00:00:00Z'),
+        }), // excluded: non-Residential
+        makeProperty({
+          providerId: 'p3',
+          propertyType: 'STUDIO',
+          priceAmount: 100000,
+          squareMeters: 100,
+          priceCurrency: 'USD',
+          createdAt: new Date('2026-09-07T00:00:00Z'),
+        }), // excluded: not the Snapshot's Dominant Currency
+      ]);
+
+      const result = await service.getContributingListings(1, 1, 10);
+
+      expect(propertyRepository.find).toHaveBeenCalledWith({
+        where: {
+          areaId: 1,
+          createdAt: expect.anything(),
+        },
+      });
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toMatchObject({ providerId: 'p1' });
+      expect(result.total).toBe(1);
+      expect(result.summary.windowEnd).toBe(snapshotAt);
+    });
+
+    it('sorts Contributing Listings by createdAt descending and paginates', async () => {
+      areaRepository.findOne.mockResolvedValue(snapshottedArea);
+      propertyRepository.find.mockResolvedValue([
+        makeProperty({
+          providerId: 'p1',
+          priceCurrency: 'EUR',
+          createdAt: new Date('2026-09-01T00:00:00Z'),
+        }),
+        makeProperty({
+          providerId: 'p2',
+          priceCurrency: 'EUR',
+          createdAt: new Date('2026-09-03T00:00:00Z'),
+        }),
+        makeProperty({
+          providerId: 'p3',
+          priceCurrency: 'EUR',
+          createdAt: new Date('2026-09-02T00:00:00Z'),
+        }),
+      ]);
+
+      const firstPage = await service.getContributingListings(1, 1, 2);
+
+      expect(firstPage.total).toBe(3);
+      expect(firstPage.totalPages).toBe(2);
+      expect(firstPage.data.map((p: any) => p.providerId)).toEqual([
+        'p2',
+        'p3',
+      ]);
+
+      const secondPage = await service.getContributingListings(1, 2, 2);
+
+      expect(secondPage.data.map((p: any) => p.providerId)).toEqual(['p1']);
+    });
+
+    it('reports whether the highlighted listing is a Contributing Listing, independent of pagination', async () => {
+      areaRepository.findOne.mockResolvedValue(snapshottedArea);
+      propertyRepository.find.mockResolvedValue([
+        makeProperty({
+          providerId: 'included',
+          priceCurrency: 'EUR',
+          createdAt: new Date('2026-09-01T00:00:00Z'),
+        }),
+      ]);
+
+      const included = await service.getContributingListings(
+        1,
+        1,
+        10,
+        'included',
+      );
+      expect(included.summary.highlightedListingIncluded).toBe(true);
+
+      const excluded = await service.getContributingListings(
+        1,
+        1,
+        10,
+        'not-in-the-window',
+      );
+      expect(excluded.summary.highlightedListingIncluded).toBe(false);
+
+      const noHighlight = await service.getContributingListings(1, 1, 10);
+      expect(noHighlight.summary.highlightedListingIncluded).toBeNull();
+    });
   });
 });

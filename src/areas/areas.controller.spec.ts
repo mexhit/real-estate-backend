@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AreasController } from './areas.controller';
 import { AreasService } from './areas.service';
+import { AreaPriceSnapshotsService } from './area-price-snapshots.service';
 import { Area } from './area.entity';
 
 describe('AreasController', () => {
@@ -12,6 +13,9 @@ describe('AreasController', () => {
     rename: jest.Mock;
     deleteAndReassign: jest.Mock;
   };
+  let areaPriceSnapshotsService: {
+    getContributingListings: jest.Mock;
+  };
 
   beforeEach(async () => {
     areasService = {
@@ -21,6 +25,9 @@ describe('AreasController', () => {
       rename: jest.fn(),
       deleteAndReassign: jest.fn(),
     };
+    areaPriceSnapshotsService = {
+      getContributingListings: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AreasController],
@@ -28,6 +35,10 @@ describe('AreasController', () => {
         {
           provide: AreasService,
           useValue: areasService,
+        },
+        {
+          provide: AreaPriceSnapshotsService,
+          useValue: areaPriceSnapshotsService,
         },
       ],
     }).compile();
@@ -76,5 +87,31 @@ describe('AreasController', () => {
 
     await controller.deleteAndReassign(1, 2);
     expect(areasService.deleteAndReassign).toHaveBeenCalledWith(1, 2);
+  });
+
+  it('delegates fetching Contributing Listings to AreaPriceSnapshotsService, clamping page/limit', async () => {
+    const result = { data: [], total: 0, page: 1, limit: 10, totalPages: 1 };
+    areaPriceSnapshotsService.getContributingListings.mockResolvedValue(
+      result,
+    );
+
+    await expect(
+      controller.getContributingListings(1, 0, 500),
+    ).resolves.toBe(result);
+    expect(
+      areaPriceSnapshotsService.getContributingListings,
+    ).toHaveBeenCalledWith(1, 1, 100, undefined);
+  });
+
+  it('passes highlightProviderId through to AreaPriceSnapshotsService', async () => {
+    const result = { data: [], total: 0, page: 1, limit: 10, totalPages: 1 };
+    areaPriceSnapshotsService.getContributingListings.mockResolvedValue(
+      result,
+    );
+
+    await controller.getContributingListings(1, 1, 10, 'provider-1');
+    expect(
+      areaPriceSnapshotsService.getContributingListings,
+    ).toHaveBeenCalledWith(1, 1, 10, 'provider-1');
   });
 });

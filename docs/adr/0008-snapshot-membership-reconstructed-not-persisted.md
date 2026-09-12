@@ -1,0 +1,7 @@
+# Contributing Listings are reconstructed on demand, not persisted at run time
+
+An Area Price Snapshot has never recorded *which* Property Listings fed it — only the aggregate (count, average, currency). To power a "show me the listings behind this average" drill-down, Contributing Listings are reconstructed by re-querying current Property data against the historical run's Snapshot Window and Dominant Currency, via a helper shared with the snapshot job itself, rather than by persisting a snapshot-to-listing join table at run time. This avoids a schema migration and a backfill for what is otherwise a rarely-exercised read path.
+
+## Consequences
+
+Because reconstruction queries *live* Property data, the reconstructed list can drift from the Snapshot's cached `propertyCount` if a Contributing Listing's Property Type, Area, or price/m² is edited after that run and before someone opens the drill-down (e.g. an AI re-resolution reclassifies it, or it's reassigned to another Area). This is accepted as a rare, self-correcting inconsistency — the next scheduled run re-syncs both the aggregate and the reconstructable set from the same current data. A future reader seeing the drill-down's count briefly disagree with the badge's cached count should not treat it as a bug. If exact historical membership ever becomes a real requirement (e.g. auditing past runs), it will require persisting membership at run time — this decision does not support that.

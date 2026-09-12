@@ -29,12 +29,20 @@ A named zone a Property Listing can be AI-resolved into (e.g. "Blloku", "Tirana 
 _Avoid_: Neighborhood, Zone
 
 **Area Price Snapshot**:
-A record of the average price-per-m² computed for an Area during one run of the pricing job, together with how many Property Listings (via their latest Capture in the 30-day window) fed the calculation. Only Property Listings of a Residential Property Type feed the average — a listing of any other Property Type is left out of both the average and the count entirely. The pricing job runs weekly on schedule, but can also be triggered manually (e.g. for testing); a manually-triggered run is a real run — it produces a real Snapshot and updates the Area's displayed price exactly like a scheduled run, with no distinction recorded between the two. Each run produces one Snapshot per Area, forming a running history.
+A record of the average price-per-m² computed for an Area during one run of the pricing job, together with how many Property Listings (via their latest Capture in the Snapshot Window) fed the calculation. Only Property Listings of a Residential Property Type feed the average — a listing of any other Property Type is left out of both the average and the count entirely. The pricing job runs weekly on schedule, but can also be triggered manually (e.g. for testing); a manually-triggered run is a real run — it produces a real Snapshot and updates the Area's displayed price exactly like a scheduled run, with no distinction recorded between the two. Each run produces one Snapshot per Area, forming a running history. A Snapshot never records which specific Property Listings fed it — only the aggregate; its Contributing Listings are reconstructed on demand, not stored.
 _Avoid_: Area stats, price history entry, weekly pricing job (it isn't only weekly anymore)
+
+**Snapshot Window**:
+The 30-day period ending at an Area Price Snapshot run's time. A Capture must fall within this window for its Property Listing to be considered for that Snapshot.
+_Avoid_: Lookback period, pricing window
 
 **Dominant Currency**:
 The currency shared by the largest number of eligible Property Listings feeding one Area Price Snapshot. Listings priced in a different currency, or with no currency, are excluded from that Snapshot.
 _Avoid_: Primary currency, base currency
+
+**Contributing Listing**:
+A Property Listing whose latest Capture within an Area Price Snapshot's Window was included in that Snapshot's average — it is a Residential Property Type (or untyped), and that Capture's price and area are positive and priced in the Snapshot's Dominant Currency. Because Snapshots don't persist membership, a Snapshot's Contributing Listings are reconstructed by re-querying current Property data against that run's Window and Dominant Currency; this reconstruction can drift from the Snapshot's cached count if a listing's type, Area, or price is edited after the run (accepted as a rare, self-correcting inconsistency — see `docs/adr/0008-snapshot-membership-reconstructed-not-persisted.md`).
+_Avoid_: Eligible property, snapshot member, included listing
 
 **Price Position**:
 A Property Listing's price-per-m² classified against its Area's cached Area Price Snapshot average, as `Above Area Average`, `Below Area Average`, or `In Line With Area Average` (within a ±5% band). Computed only when the Property Listing's `priceCurrency` matches the Area's `avgPriceCurrency` and the Area's snapshot was built from at least 5 Property Listings; otherwise there is no Price Position. Computed for every Property Listing regardless of Property Type — a non-Residential listing (e.g. a Shop) is still classified against the Area's Residential-only average, deliberately, rather than being excluded from Price Position too. Computed server-side so the band and minimum-sample rules stay in one place.
