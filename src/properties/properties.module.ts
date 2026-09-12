@@ -4,6 +4,7 @@ import { PropertiesService } from './properties.service';
 import { PropertiesController } from './properties.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Property } from './property.entity';
+import { PropertyEditHistory } from './property-edit-history.entity';
 import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
 import { AI_PROVIDER } from './ai-provider.interface';
 import {
@@ -19,7 +20,11 @@ import { AreasModule } from '../areas/areas.module';
 import { SettingsModule } from '../settings/settings.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Property]), AreasModule, SettingsModule],
+  imports: [
+    TypeOrmModule.forFeature([Property, PropertyEditHistory]),
+    AreasModule,
+    SettingsModule,
+  ],
   controllers: [PropertiesController],
   providers: [
     PropertiesService,

@@ -8,6 +8,7 @@ describe('PropertiesController', () => {
     getProperties: jest.Mock;
     queueCreateProperties: jest.Mock;
     updatePropertyFromAi: jest.Mock;
+    updateProperty: jest.Mock;
     getNewPropertiesSeries: jest.Mock;
   };
 
@@ -16,6 +17,7 @@ describe('PropertiesController', () => {
       getProperties: jest.fn(),
       queueCreateProperties: jest.fn(),
       updatePropertyFromAi: jest.fn(),
+      updateProperty: jest.fn(),
       getNewPropertiesSeries: jest.fn(),
     };
 
@@ -237,6 +239,23 @@ describe('PropertiesController', () => {
 
     await expect(controller.updatePropertyFromAi(5)).resolves.toBe(property);
     expect(propertiesService.updatePropertyFromAi).toHaveBeenCalledWith(5);
+  });
+
+  it('passes the id, body, and current user id to the manual update service method', async () => {
+    const property = { id: 5, title: 'New title' };
+    propertiesService.updateProperty.mockResolvedValue(property);
+
+    const request = { user: { id: 42 } } as any;
+    const updates = { title: 'New title' };
+
+    await expect(
+      controller.updateProperty(5, updates, request),
+    ).resolves.toBe(property);
+    expect(propertiesService.updateProperty).toHaveBeenCalledWith(
+      5,
+      updates,
+      42,
+    );
   });
 
   it('returns the dedicated New Property analytics series', async () => {

@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
@@ -7,6 +12,7 @@ import {
   Property,
   PropertyType,
 } from './property.entity';
+import { PropertyEditHistory } from './property-edit-history.entity';
 import {
   ExtractedPropertyMetadata,
   PropertyMetadataExtractionService,
@@ -22,6 +28,22 @@ import { AreasService } from '../areas/areas.service';
 import { computePricePosition } from './price-position';
 
 export type { NewPropertySeriesPoint } from './new-properties-series.helper';
+
+const MANUALLY_EDITABLE_FIELDS = [
+  'title',
+  'description',
+  'priceAmount',
+  'priceCurrency',
+  'squareMeters',
+  'propertyType',
+  'areaId',
+] as const;
+
+export type ManuallyEditableField = (typeof MANUALLY_EDITABLE_FIELDS)[number];
+
+export type PropertyManualUpdate = Partial<
+  Pick<Property, ManuallyEditableField>
+>;
 
 type PropertyFilters = {
   fromDate?: Date;
@@ -43,6 +65,8 @@ export class PropertiesService {
   constructor(
     @InjectRepository(Property)
     private propertyRepository: Repository<Property>,
+    @InjectRepository(PropertyEditHistory)
+    private propertyEditHistoryRepository: Repository<PropertyEditHistory>,
     private readonly propertyMetadataExtractionService: PropertyMetadataExtractionService,
     private readonly areasService: AreasService,
     private readonly configService: ConfigService,
@@ -425,6 +449,180 @@ export class PropertiesService {
     };
   }
 
+  private buildAiFieldPatch(
+    property: Property,
+    aiValues: Pick<
+      Property,
+      'priceAmount' | 'priceCurrency' | 'squareMeters' | 'propertyType' | 'areaId'
+    >,
+  ): Partial<Property> {
+    const lockedFields = new Set(property.manuallyEditedFields ?? []);
+    const patch: Partial<Property> = {};
+
+    for (const field of [
+      'priceAmount',
+      'priceCurrency',
+      'squareMeters',
+      'propertyType',
+      'areaId',
+    ] as const) {
+      if (!lockedFields.has(field)) {
+        (patch as any)[field] = aiValues[field];
+      }
+    }
+
+    return patch;
+  }
+
+  async updateProperty(
+    id: number,
+    updates: PropertyManualUpdate,
+    editedByUserId: number,
+  ): Promise<Property> {
+    const property = await this.propertyRepository.findOne({
+      where: { id },
+    });
+
+    if (!property) {
+      throw new NotFoundException(`Property with id ${id} not found`);
+    }
+
+    const patch: Partial<Property> = {};
+    const changes: {
+      field: ManuallyEditableField;
+      oldValue: unknown;
+      newValue: unknown;
+    }[] = [];
+
+    for (const field of MANUALLY_EDITABLE_FIELDS) {
+      if (!Object.prototype.hasOwnProperty.call(updates, field)) {
+        continue;
+      }
+
+      const newValue = await this.validateManualEditValue(
+        field,
+        updates[field],
+      );
+      const oldValue = property[field];
+
+      if (newValue === oldValue) {
+        continue;
+      }
+
+      (patch as any)[field] = newValue;
+      changes.push({ field, oldValue, newValue });
+    }
+
+    if (changes.length === 0) {
+      return property;
+    }
+
+    const manuallyEditedFields = Array.from(
+      new Set([
+        ...(property.manuallyEditedFields ?? []),
+        ...changes.map((change) => change.field),
+      ]),
+    );
+
+    const saved = await this.propertyRepository.save({
+      ...property,
+      ...patch,
+      manuallyEditedFields,
+    });
+
+    await this.propertyEditHistoryRepository.insert(
+      changes.map((change) => ({
+        propertyId: id,
+        userId: editedByUserId,
+        field: change.field,
+        oldValue: change.oldValue == null ? null : String(change.oldValue),
+        newValue: change.newValue == null ? null : String(change.newValue),
+      })),
+    );
+
+    return saved;
+  }
+
+  private async validateManualEditValue(
+    field: ManuallyEditableField,
+    value: unknown,
+  ): Promise<unknown> {
+    switch (field) {
+      case 'title': {
+        if (typeof value !== 'string' || value.trim().length === 0) {
+          throw new BadRequestException('Title is required');
+        }
+
+        return value.trim();
+      }
+      case 'description': {
+        if (typeof value !== 'string') {
+          throw new BadRequestException('Description must be text');
+        }
+
+        return value.trim();
+      }
+      case 'priceAmount':
+      case 'squareMeters': {
+        if (value === null) {
+          return null;
+        }
+
+        const numericValue = Number(value);
+
+        if (!Number.isInteger(numericValue) || numericValue <= 0) {
+          throw new BadRequestException(
+            field === 'priceAmount'
+              ? 'Price must be a positive whole number'
+              : 'Square meters must be a positive whole number',
+          );
+        }
+
+        return numericValue;
+      }
+      case 'priceCurrency': {
+        if (value === null) {
+          return null;
+        }
+
+        if (typeof value !== 'string' || value.trim().length === 0) {
+          throw new BadRequestException('Currency is required');
+        }
+
+        return value.trim().toUpperCase();
+      }
+      case 'propertyType': {
+        if (value === null) {
+          return null;
+        }
+
+        const normalized = normalizePropertyType(value);
+
+        if (!normalized) {
+          throw new BadRequestException('Invalid property type');
+        }
+
+        return normalized;
+      }
+      case 'areaId': {
+        if (value === null) {
+          return null;
+        }
+
+        const numericValue = Number(value);
+
+        if (!Number.isInteger(numericValue)) {
+          throw new BadRequestException('areaId must be a number');
+        }
+
+        // Throws NotFoundException if the area doesn't exist (or is deleted).
+        await this.areasService.findOne(numericValue);
+
+        return numericValue;
+      }
+    }
+  }
+
   private chunkArray<T>(items: T[], size: number): T[][] {
     const chunks: T[][] = [];
 
@@ -460,11 +658,13 @@ export class PropertiesService {
 
       saved = await this.propertyRepository.save({
         ...property,
-        priceAmount: extractedMetadata.priceAmount,
-        priceCurrency: extractedMetadata.priceCurrency,
-        squareMeters: extractedMetadata.squareMeters,
-        propertyType: extractedMetadata.propertyType,
-        areaId,
+        ...this.buildAiFieldPatch(property, {
+          priceAmount: extractedMetadata.priceAmount,
+          priceCurrency: extractedMetadata.priceCurrency,
+          squareMeters: extractedMetadata.squareMeters,
+          propertyType: extractedMetadata.propertyType,
+          areaId,
+        }),
         aiResponseError: null,
         aiMetadataUpdatedAt: new Date(),
       });
@@ -540,11 +740,13 @@ export class PropertiesService {
       updatedProperties.push(
         await this.propertyRepository.save({
           ...property,
-          priceAmount: extractedMetadata.priceAmount,
-          priceCurrency: extractedMetadata.priceCurrency,
-          squareMeters: extractedMetadata.squareMeters,
-          propertyType: extractedMetadata.propertyType,
-          areaId,
+          ...this.buildAiFieldPatch(property, {
+            priceAmount: extractedMetadata.priceAmount,
+            priceCurrency: extractedMetadata.priceCurrency,
+            squareMeters: extractedMetadata.squareMeters,
+            propertyType: extractedMetadata.propertyType,
+            areaId,
+          }),
           aiResponseError: null,
           aiMetadataUpdatedAt: new Date(),
         }),

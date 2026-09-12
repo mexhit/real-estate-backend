@@ -118,6 +118,9 @@ export class Property {
   @Index('IDX_property_bookmarked')
   bookmarked: boolean;
 
+  @Column({ type: 'text', array: true, default: () => "'{}'" })
+  manuallyEditedFields: string[];
+
   @CreateDateColumn({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   @Index('IDX_property_created_at')
   createdAt: Date;

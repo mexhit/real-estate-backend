@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { IsNull, MoreThanOrEqual, Not } from 'typeorm';
 import { PropertiesService } from './properties.service';
 import { Property } from './property.entity';
+import { PropertyEditHistory } from './property-edit-history.entity';
 import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
 import { AreasService } from '../areas/areas.service';
 import { Area } from '../areas/area.entity';
@@ -18,8 +19,13 @@ describe('PropertiesService', () => {
     query: jest.Mock;
     update: jest.Mock;
   };
+  let editHistoryRepository: { insert: jest.Mock };
   let extractionService: { extract: jest.Mock; extractMany: jest.Mock };
-  let areasService: { listActiveNames: jest.Mock; findOrCreate: jest.Mock };
+  let areasService: {
+    listActiveNames: jest.Mock;
+    findOrCreate: jest.Mock;
+    findOne: jest.Mock;
+  };
   let configService: { get: jest.Mock };
 
   beforeEach(async () => {
@@ -31,6 +37,9 @@ describe('PropertiesService', () => {
       query: jest.fn(),
       update: jest.fn(),
     };
+    editHistoryRepository = {
+      insert: jest.fn(),
+    };
     extractionService = {
       extract: jest.fn(),
       extractMany: jest.fn(),
@@ -38,6 +47,7 @@ describe('PropertiesService', () => {
     areasService = {
       listActiveNames: jest.fn().mockResolvedValue([]),
       findOrCreate: jest.fn(),
+      findOne: jest.fn(),
     };
     configService = {
       get: jest.fn((_key: string, defaultValue?: string) => defaultValue),
@@ -49,6 +59,10 @@ describe('PropertiesService', () => {
         {
           provide: getRepositoryToken(Property),
           useValue: repository,
+        },
+        {
+          provide: getRepositoryToken(PropertyEditHistory),
+          useValue: editHistoryRepository,
         },
         {
           provide: PropertyMetadataExtractionService,
@@ -304,6 +318,10 @@ describe('PropertiesService', () => {
         providers: [
           PropertiesService,
           { provide: getRepositoryToken(Property), useValue: repository },
+          {
+            provide: getRepositoryToken(PropertyEditHistory),
+            useValue: editHistoryRepository,
+          },
           {
             provide: PropertyMetadataExtractionService,
             useValue: extractionService,
@@ -932,6 +950,203 @@ describe('PropertiesService', () => {
       } finally {
         jest.useRealTimers();
       }
+    });
+  });
+
+  describe('updateProperty', () => {
+    it('applies validated changes, records history, and locks the edited fields', async () => {
+      const property = {
+        id: 20,
+        providerId: 'provider-20',
+        title: 'Old title',
+        description: 'Old description',
+        priceAmount: 100000,
+        priceCurrency: 'EUR',
+        squareMeters: 60,
+        propertyType: 'APARTMENT_2_1',
+        areaId: null,
+        manuallyEditedFields: [],
+      } as unknown as Property;
+
+      repository.findOne.mockResolvedValue(property);
+      repository.save.mockImplementation(async (payload) => payload);
+
+      const updated = await service.updateProperty(
+        20,
+        { title: '  New title  ', priceAmount: 150000 },
+        7,
+      );
+
+      expect(repository.save).toHaveBeenCalledWith({
+        ...property,
+        title: 'New title',
+        priceAmount: 150000,
+        manuallyEditedFields: ['title', 'priceAmount'],
+      });
+      expect(editHistoryRepository.insert).toHaveBeenCalledWith([
+        {
+          propertyId: 20,
+          userId: 7,
+          field: 'title',
+          oldValue: 'Old title',
+          newValue: 'New title',
+        },
+        {
+          propertyId: 20,
+          userId: 7,
+          field: 'priceAmount',
+          oldValue: '100000',
+          newValue: '150000',
+        },
+      ]);
+      expect(updated).toMatchObject({
+        title: 'New title',
+        priceAmount: 150000,
+      });
+    });
+
+    it('does not touch already-locked fields again if resubmitted with the same value', async () => {
+      const property = {
+        id: 21,
+        title: 'Title',
+        description: 'Description',
+        manuallyEditedFields: ['title'],
+      } as unknown as Property;
+
+      repository.findOne.mockResolvedValue(property);
+
+      const updated = await service.updateProperty(21, { title: 'Title' }, 7);
+
+      expect(repository.save).not.toHaveBeenCalled();
+      expect(editHistoryRepository.insert).not.toHaveBeenCalled();
+      expect(updated).toBe(property);
+    });
+
+    it('validates areaId against existing Areas before saving', async () => {
+      const property = {
+        id: 22,
+        title: 'Title',
+        description: 'Description',
+        areaId: null,
+        manuallyEditedFields: [],
+      } as unknown as Property;
+
+      repository.findOne.mockResolvedValue(property);
+      areasService.findOne.mockRejectedValue(
+        new Error('Area with id 999 not found'),
+      );
+
+      await expect(
+        service.updateProperty(22, { areaId: 999 }, 7),
+      ).rejects.toThrow('Area with id 999 not found');
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects an invalid propertyType', async () => {
+      const property = {
+        id: 23,
+        title: 'Title',
+        description: 'Description',
+        manuallyEditedFields: [],
+      } as unknown as Property;
+
+      repository.findOne.mockResolvedValue(property);
+
+      await expect(
+        service.updateProperty(23, { propertyType: 'NOT_A_TYPE' } as any, 7),
+      ).rejects.toThrow('Invalid property type');
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects a blank title', async () => {
+      const property = {
+        id: 24,
+        title: 'Title',
+        description: 'Description',
+        manuallyEditedFields: [],
+      } as unknown as Property;
+
+      repository.findOne.mockResolvedValue(property);
+
+      await expect(
+        service.updateProperty(24, { title: '   ' }, 7),
+      ).rejects.toThrow('Title is required');
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('throws when the property does not exist', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.updateProperty(404, { title: 'New title' }, 7),
+      ).rejects.toThrow('Property with id 404 not found');
+    });
+  });
+
+  describe('AI updates respecting manual overrides', () => {
+    it('skips fields already manually edited when updating a single property from AI', async () => {
+      const property = {
+        id: 30,
+        providerId: 'provider-30',
+        title: 'Apartment',
+        description: 'Description',
+        price: '100000 EUR',
+        priceAmount: 999999,
+        priceCurrency: 'EUR',
+        squareMeters: 60,
+        propertyType: 'APARTMENT_2_1',
+        manuallyEditedFields: ['priceAmount'],
+      } as unknown as Property;
+
+      repository.findOne.mockResolvedValue(property);
+      extractionService.extract.mockResolvedValue({
+        priceAmount: 111111,
+        priceCurrency: 'EUR',
+        squareMeters: 65,
+        propertyType: 'STUDIO',
+      });
+      repository.save.mockImplementation(async (payload) => payload);
+
+      await service.updatePropertyFromAi(30);
+
+      expect(repository.save).toHaveBeenCalledWith({
+        ...property,
+        priceCurrency: 'EUR',
+        squareMeters: 65,
+        propertyType: 'STUDIO',
+        areaId: null,
+        aiResponseError: null,
+        aiMetadataUpdatedAt: expect.any(Date),
+      });
+    });
+
+    it('skips locked fields when batch-updating properties from AI', async () => {
+      const properties = [
+        {
+          id: 31,
+          providerId: 'provider-31',
+          title: 'Apartment',
+          description: 'Description',
+          price: '100000 EUR',
+          priceAmount: 500000,
+          manuallyEditedFields: ['priceAmount'],
+        },
+      ] as unknown as Property[];
+
+      extractionService.extractMany.mockResolvedValue([
+        {
+          priceAmount: 111111,
+          priceCurrency: 'EUR',
+          squareMeters: 65,
+          propertyType: 'STUDIO',
+          areaName: null,
+        },
+      ]);
+      repository.save.mockImplementation(async (payload) => payload);
+
+      const updated = await service.updatePropertiesFromAi(properties);
+
+      expect(updated).toMatchObject([{ id: 31, priceAmount: 500000 }]);
     });
   });
 });

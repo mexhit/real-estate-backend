@@ -6,13 +6,20 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Put,
   Query,
+  Req,
 } from '@nestjs/common';
-import { PropertiesService } from './properties.service';
+import { Request } from 'express';
+import {
+  PropertiesService,
+  PropertyManualUpdate,
+} from './properties.service';
 import { normalizePropertyType, Property } from './property.entity';
 import { AllowApiKey } from '../auth/api-key.decorator';
+import { UserResponse } from '../users/user-response.type';
 
 @Controller('properties')
 export class PropertiesController {
@@ -97,6 +104,19 @@ export class PropertiesController {
     const bookmarkedBool = bookmarked === 'true';
 
     return this.propertiesService.bookmarkProperty(id, bookmarkedBool);
+  }
+
+  @Patch(':id')
+  updateProperty(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updates: PropertyManualUpdate,
+    @Req() request: Request & { user: UserResponse },
+  ) {
+    return this.propertiesService.updateProperty(
+      id,
+      updates,
+      request.user.id,
+    );
   }
 
   @Post()
