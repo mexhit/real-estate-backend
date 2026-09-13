@@ -59,6 +59,26 @@ export function normalizePropertyType(value: unknown): PropertyType | null {
   return null;
 }
 
+export const PROPERTY_SOURCES = ['duashpi', 'gazetacelesi'] as const;
+
+export type PropertySource = (typeof PROPERTY_SOURCES)[number];
+
+export const DEFAULT_PROPERTY_SOURCE: PropertySource = 'duashpi';
+
+export function normalizePropertySource(value: unknown): PropertySource | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  if (PROPERTY_SOURCES.includes(trimmed as PropertySource)) {
+    return trimmed as PropertySource;
+  }
+
+  return null;
+}
+
 @Index('IDX_property_provider_id_id', ['providerId', 'id'])
 @Index('IDX_property_provider_id_price', ['providerId', 'price'])
 @Index('IDX_property_provider_id_created_at', ['providerId', 'createdAt'])
@@ -70,6 +90,9 @@ export class Property {
   @Column()
   @Index('IDX_property_provider_id')
   providerId: string;
+
+  @Column({ default: DEFAULT_PROPERTY_SOURCE })
+  source: string;
 
   @Column()
   title: string;

@@ -12,6 +12,10 @@ _Avoid_: Property record, posting
 A single stored observation of a Property Listing (one row in the `property` table), made when the listing is first or re-observed. A Property Listing may have multiple Captures over time.
 _Avoid_: Property record, duplicate
 
+**Source**:
+The external website a Capture was scraped from (e.g. `duashpi`, `gazetacelesi`), recorded on each Capture at creation and never re-derived afterward. Distinct from both the real-estate listing provider identified by `providerId` (the agency/broker who posted the listing) and the AI Provider (the AI vendor account) — three separate "who/where" concepts that must not be conflated.
+_Avoid_: Provider, Site (bare "provider" is reserved for the real-estate listing provider or the AI Provider — always say "Source" for the originating website)
+
 **New Property**:
 A Property Listing counted on the calendar date when it was first observed, determined by its earliest `createdAt` value.
 _Avoid_: Latest property, property record created that day

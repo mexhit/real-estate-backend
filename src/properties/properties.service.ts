@@ -8,6 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import {
+  DEFAULT_PROPERTY_SOURCE,
+  normalizePropertySource,
   normalizePropertyType,
   Property,
   PropertyType,
@@ -436,6 +438,8 @@ export class PropertiesService {
 
     return {
       ...property,
+      source:
+        normalizePropertySource(property.source) ?? DEFAULT_PROPERTY_SOURCE,
       priceAmount:
         property.priceAmount ?? extractedMetadata?.priceAmount ?? null,
       priceCurrency:
@@ -454,7 +458,11 @@ export class PropertiesService {
     property: Property,
     aiValues: Pick<
       Property,
-      'priceAmount' | 'priceCurrency' | 'squareMeters' | 'propertyType' | 'areaId'
+      | 'priceAmount'
+      | 'priceCurrency'
+      | 'squareMeters'
+      | 'propertyType'
+      | 'areaId'
     >,
   ): Partial<Property> {
     const lockedFields = new Set(property.manuallyEditedFields ?? []);
