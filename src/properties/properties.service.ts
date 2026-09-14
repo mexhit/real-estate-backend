@@ -54,6 +54,8 @@ type PropertyFilters = {
   onlyUnseen?: boolean;
   onlyBookmarked?: boolean;
   onlyPriceChanged?: boolean;
+  onlyUntyped?: boolean;
+  onlyUnresolved?: boolean;
   propertyTypes?: PropertyType[];
   areaIds?: number[];
 };
@@ -120,7 +122,9 @@ export class PropertiesService {
       paramIndex++;
     }
 
-    if (filters.propertyTypes && filters.propertyTypes.length > 0) {
+    if (filters.onlyUntyped) {
+      conditions.push(`ranked_properties."propertyType" IS NULL`);
+    } else if (filters.propertyTypes && filters.propertyTypes.length > 0) {
       const placeholders = filters.propertyTypes.map(() => `$${paramIndex++}`);
       conditions.push(
         `ranked_properties."propertyType" IN (${placeholders.join(', ')})`,
@@ -128,7 +132,9 @@ export class PropertiesService {
       whereParams.push(...filters.propertyTypes);
     }
 
-    if (filters.areaIds && filters.areaIds.length > 0) {
+    if (filters.onlyUnresolved) {
+      conditions.push(`ranked_properties."areaId" IS NULL`);
+    } else if (filters.areaIds && filters.areaIds.length > 0) {
       const placeholders = filters.areaIds.map(() => `$${paramIndex++}`);
       conditions.push(
         `ranked_properties."areaId" IN (${placeholders.join(', ')})`,

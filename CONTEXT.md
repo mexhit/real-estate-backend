@@ -24,6 +24,10 @@ _Avoid_: Latest property, property record created that day
 A Property Listing's classification of what kind of space it is (e.g. `APARTMENT_1_1`, `STUDIO`, `VILLA`, `SHOP`, `OFFICE`, `LAND`, `PARKING`). A Property Listing may have no Property Type recorded.
 _Avoid_: Category, listing type
 
+**Untyped**:
+A Property Listing with no Property Type recorded. Treated as a Residential Property Type wherever that classification matters (e.g. an Area Price Snapshot's average).
+_Avoid_: No type, missing property type, null property type
+
 **Residential Property Type**:
 The subset of Property Types (apartments, studio, private house, villa) whose price-per-m² is comparable enough to feed an Area Price Snapshot's average. `SHOP`, `OFFICE`, `LAND`, and `PARKING` are not Residential Property Types — their per-m² pricing doesn't compare meaningfully to residential pricing, so Property Listings of those types are excluded from the average entirely. A Property Listing with no Property Type recorded is treated as Residential for this purpose.
 _Avoid_: Commercial property type (only the negative is named; there's no "Commercial" grouping, just "not Residential")
@@ -31,6 +35,10 @@ _Avoid_: Commercial property type (only the negative is named; there's no "Comme
 **Area**:
 A named zone a Property Listing can be AI-resolved into (e.g. "Blloku", "Tirana e Re"), uniquely identified by a normalized `key`. Areas can be soft-deleted; a soft-deleted Area's `key` becomes available for reuse. Deleting an Area requires reassigning every Property Listing currently resolved to it to another Area, atomically, as part of the same operation — an Area can never be deleted out from under a Property Listing. Only non-deleted Areas can be chosen to filter listings or as a reassignment target. An Area also carries its most recent Area Price Snapshot's value directly, for fast display.
 _Avoid_: Neighborhood, Zone
+
+**Unresolved**:
+A Property Listing that has not yet been AI- or manually-resolved to any Area. Only possible before resolution happens — an Area's deletion always reassigns its Property Listings rather than leaving them Unresolved.
+_Avoid_: Missing area, no area, null area
 
 **Area Price Snapshot**:
 A record of the average price-per-m² computed for an Area during one run of the pricing job, together with how many Property Listings (via their latest Capture in the Snapshot Window) fed the calculation. Only Property Listings of a Residential Property Type feed the average — a listing of any other Property Type is left out of both the average and the count entirely. The pricing job runs weekly on schedule, but can also be triggered manually (e.g. for testing); a manually-triggered run is a real run — it produces a real Snapshot and updates the Area's displayed price exactly like a scheduled run, with no distinction recorded between the two. Each run produces one Snapshot per Area, forming a running history. A Snapshot never records which specific Property Listings fed it — only the aggregate; its Contributing Listings are reconstructed on demand, not stored.

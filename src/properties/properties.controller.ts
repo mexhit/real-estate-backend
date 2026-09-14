@@ -34,6 +34,8 @@ export class PropertiesController {
     @Query('onlyUnseen') onlyUnseen: string,
     @Query('onlyBookmarked') onlyBookmarked: string,
     @Query('onlyPriceChanged') onlyPriceChanged: string,
+    @Query('onlyUntyped') onlyUntyped: string,
+    @Query('onlyUnresolved') onlyUnresolved: string,
     @Query('propertyTypes') propertyTypes: string | string[],
     @Query('areaIds') areaIds: string | string[],
   ) {
@@ -45,6 +47,8 @@ export class PropertiesController {
     const onlyUnseenBool = onlyUnseen === 'true';
     const onlyBookmarkedBool = onlyBookmarked === 'true';
     const onlyPriceChangedBool = onlyPriceChanged === 'true';
+    const onlyUntypedBool = onlyUntyped === 'true';
+    const onlyUnresolvedBool = onlyUnresolved === 'true';
     const normalizedPropertyTypes = (
       Array.isArray(propertyTypes) ? propertyTypes : [propertyTypes]
     )
@@ -69,6 +73,8 @@ export class PropertiesController {
       onlyUnseen: onlyUnseenBool,
       onlyBookmarked: onlyBookmarkedBool,
       onlyPriceChanged: onlyPriceChangedBool,
+      onlyUntyped: onlyUntypedBool,
+      onlyUnresolved: onlyUnresolvedBool,
       propertyTypes: propertyTypesFilter,
       areaIds: areaIdsFilter,
     });

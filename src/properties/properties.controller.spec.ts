@@ -55,6 +55,8 @@ describe('PropertiesController', () => {
       'false',
       'false',
       'false',
+      'false',
+      'false',
       'APARTMENT_2_1',
       undefined,
     );
@@ -65,6 +67,8 @@ describe('PropertiesController', () => {
       onlyUnseen: false,
       onlyBookmarked: false,
       onlyPriceChanged: false,
+      onlyUntyped: false,
+      onlyUnresolved: false,
       propertyTypes: ['APARTMENT_2_1'],
     });
   });
@@ -86,6 +90,8 @@ describe('PropertiesController', () => {
       'false',
       'false',
       'false',
+      'false',
+      'false',
       ['APARTMENT_2_1', 'SHOP'],
       undefined,
     );
@@ -96,6 +102,8 @@ describe('PropertiesController', () => {
       onlyUnseen: false,
       onlyBookmarked: false,
       onlyPriceChanged: false,
+      onlyUntyped: false,
+      onlyUnresolved: false,
       propertyTypes: ['APARTMENT_2_1', 'SHOP'],
     });
   });
@@ -117,6 +125,8 @@ describe('PropertiesController', () => {
       'false',
       'false',
       'false',
+      'false',
+      'false',
       ['Apartment', 'Unknown'],
       undefined,
     );
@@ -127,6 +137,8 @@ describe('PropertiesController', () => {
       onlyUnseen: false,
       onlyBookmarked: false,
       onlyPriceChanged: false,
+      onlyUntyped: false,
+      onlyUnresolved: false,
       propertyTypes: undefined,
     });
   });
@@ -148,6 +160,8 @@ describe('PropertiesController', () => {
       'false',
       'false',
       'false',
+      'false',
+      'false',
       undefined,
       ['3', '5'],
     );
@@ -158,6 +172,8 @@ describe('PropertiesController', () => {
       onlyUnseen: false,
       onlyBookmarked: false,
       onlyPriceChanged: false,
+      onlyUntyped: false,
+      onlyUnresolved: false,
       propertyTypes: undefined,
       areaIds: [3, 5],
     });
@@ -180,6 +196,8 @@ describe('PropertiesController', () => {
       'false',
       'false',
       'false',
+      'false',
+      'false',
       undefined,
       ['abc'],
     );
@@ -190,6 +208,8 @@ describe('PropertiesController', () => {
       onlyUnseen: false,
       onlyBookmarked: false,
       onlyPriceChanged: false,
+      onlyUntyped: false,
+      onlyUnresolved: false,
       propertyTypes: undefined,
       areaIds: undefined,
     });
