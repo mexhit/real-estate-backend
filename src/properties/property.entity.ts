@@ -63,6 +63,11 @@ export const PROPERTY_SOURCES = ['duashpi', 'gazetacelesi'] as const;
 
 export type PropertySource = (typeof PROPERTY_SOURCES)[number];
 
+export const PROPERTY_SOURCE_LABELS: Record<PropertySource, string> = {
+  duashpi: 'Duashpi',
+  gazetacelesi: 'Gazeta Çelesi',
+};
+
 export const DEFAULT_PROPERTY_SOURCE: PropertySource = 'duashpi';
 
 export function normalizePropertySource(value: unknown): PropertySource | null {

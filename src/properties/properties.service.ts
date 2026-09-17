@@ -12,6 +12,9 @@ import {
   normalizePropertySource,
   normalizePropertyType,
   Property,
+  PROPERTY_SOURCE_LABELS,
+  PROPERTY_SOURCES,
+  PropertySource,
   PropertyType,
 } from './property.entity';
 import { PropertyEditHistory } from './property-edit-history.entity';
@@ -58,6 +61,7 @@ type PropertyFilters = {
   onlyUnresolved?: boolean;
   propertyTypes?: PropertyType[];
   areaIds?: number[];
+  sources?: PropertySource[];
 };
 
 const DEFAULT_BULK_CREATE_AI_CHUNK_SIZE = 5;
@@ -140,6 +144,14 @@ export class PropertiesService {
         `ranked_properties."areaId" IN (${placeholders.join(', ')})`,
       );
       whereParams.push(...filters.areaIds);
+    }
+
+    if (filters.sources && filters.sources.length > 0) {
+      const placeholders = filters.sources.map(() => `$${paramIndex++}`);
+      conditions.push(
+        `ranked_properties."source" IN (${placeholders.join(', ')})`,
+      );
+      whereParams.push(...filters.sources);
     }
 
     const whereSql =
@@ -258,6 +270,13 @@ export class PropertiesService {
       limit,
       totalPages: Math.ceil(Number(total) / limit),
     };
+  }
+
+  getPropertySources(): { value: PropertySource; label: string }[] {
+    return PROPERTY_SOURCES.map((value) => ({
+      value,
+      label: PROPERTY_SOURCE_LABELS[value],
+    }));
   }
 
   async getNewPropertiesSeries(): Promise<NewPropertySeriesPoint[]> {

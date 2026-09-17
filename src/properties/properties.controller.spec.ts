@@ -59,6 +59,7 @@ describe('PropertiesController', () => {
       'false',
       'APARTMENT_2_1',
       undefined,
+      undefined,
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -70,6 +71,8 @@ describe('PropertiesController', () => {
       onlyUntyped: false,
       onlyUnresolved: false,
       propertyTypes: ['APARTMENT_2_1'],
+      areaIds: undefined,
+      sources: undefined,
     });
   });
 
@@ -94,6 +97,7 @@ describe('PropertiesController', () => {
       'false',
       ['APARTMENT_2_1', 'SHOP'],
       undefined,
+      undefined,
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -105,6 +109,8 @@ describe('PropertiesController', () => {
       onlyUntyped: false,
       onlyUnresolved: false,
       propertyTypes: ['APARTMENT_2_1', 'SHOP'],
+      areaIds: undefined,
+      sources: undefined,
     });
   });
 
@@ -129,6 +135,7 @@ describe('PropertiesController', () => {
       'false',
       ['Apartment', 'Unknown'],
       undefined,
+      undefined,
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -140,6 +147,8 @@ describe('PropertiesController', () => {
       onlyUntyped: false,
       onlyUnresolved: false,
       propertyTypes: undefined,
+      areaIds: undefined,
+      sources: undefined,
     });
   });
 
@@ -164,6 +173,7 @@ describe('PropertiesController', () => {
       'false',
       undefined,
       ['3', '5'],
+      undefined,
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -176,6 +186,7 @@ describe('PropertiesController', () => {
       onlyUnresolved: false,
       propertyTypes: undefined,
       areaIds: [3, 5],
+      sources: undefined,
     });
   });
 
@@ -200,6 +211,7 @@ describe('PropertiesController', () => {
       'false',
       undefined,
       ['abc'],
+      undefined,
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -212,7 +224,67 @@ describe('PropertiesController', () => {
       onlyUnresolved: false,
       propertyTypes: undefined,
       areaIds: undefined,
+      sources: undefined,
     });
+  });
+
+  it('passes an array of valid sources filters to the service', async () => {
+    propertiesService.getProperties.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
+    });
+
+    await controller.getProperties(
+      1,
+      10,
+      undefined,
+      undefined,
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+      undefined,
+      undefined,
+      ['duashpi', 'gazetacelesi'],
+    );
+
+    expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
+      fromDate: undefined,
+      toDate: undefined,
+      onlyUnseen: false,
+      onlyBookmarked: false,
+      onlyPriceChanged: false,
+      onlyUntyped: false,
+      onlyUnresolved: false,
+      propertyTypes: undefined,
+      areaIds: undefined,
+      sources: ['duashpi', 'gazetacelesi'],
+    });
+  });
+
+  it('rejects an unrecognized source filter value', async () => {
+    await expect(
+      controller.getProperties(
+        1,
+        10,
+        undefined,
+        undefined,
+        'false',
+        'false',
+        'false',
+        'false',
+        'false',
+        undefined,
+        undefined,
+        'not-a-real-source',
+      ),
+    ).rejects.toThrow('Invalid source: not-a-real-source');
+
+    expect(propertiesService.getProperties).not.toHaveBeenCalled();
   });
 
   it('acknowledges bulk create payloads and queues them for processing', async () => {

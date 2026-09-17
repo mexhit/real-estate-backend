@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -17,7 +18,11 @@ import {
   PropertiesService,
   PropertyManualUpdate,
 } from './properties.service';
-import { normalizePropertyType, Property } from './property.entity';
+import {
+  normalizePropertySource,
+  normalizePropertyType,
+  Property,
+} from './property.entity';
 import { AllowApiKey } from '../auth/api-key.decorator';
 import { UserResponse } from '../users/user-response.type';
 
@@ -38,6 +43,7 @@ export class PropertiesController {
     @Query('onlyUnresolved') onlyUnresolved: string,
     @Query('propertyTypes') propertyTypes: string | string[],
     @Query('areaIds') areaIds: string | string[],
+    @Query('sources') sources: string | string[],
   ) {
     // Ensure positive integers
     page = Math.max(1, Number(page));
@@ -67,6 +73,25 @@ export class PropertiesController {
     const areaIdsFilter =
       normalizedAreaIds.length > 0 ? normalizedAreaIds : undefined;
 
+    const rawSources =
+      sources === undefined
+        ? []
+        : Array.isArray(sources)
+          ? sources
+          : [sources];
+    const normalizedSources = rawSources.map((value) => {
+      const normalized = normalizePropertySource(value);
+
+      if (!normalized) {
+        throw new BadRequestException(`Invalid source: ${value}`);
+      }
+
+      return normalized;
+    });
+
+    const sourcesFilter =
+      normalizedSources.length > 0 ? normalizedSources : undefined;
+
     return this.propertiesService.getProperties(page, limit, {
       fromDate: fromDateObj,
       toDate: toDateObj,
@@ -77,7 +102,13 @@ export class PropertiesController {
       onlyUnresolved: onlyUnresolvedBool,
       propertyTypes: propertyTypesFilter,
       areaIds: areaIdsFilter,
+      sources: sourcesFilter,
     });
+  }
+
+  @Get('sources')
+  getPropertySources() {
+    return this.propertiesService.getPropertySources();
   }
 
   @Get('analytics/new-properties')
