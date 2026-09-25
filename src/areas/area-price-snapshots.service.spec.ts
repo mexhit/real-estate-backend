@@ -406,6 +406,64 @@ describe('AreaPriceSnapshotsService', () => {
       const noHighlight = await service.getContributingListings(1, 1, 10);
       expect(noHighlight.summary.highlightedListingIncluded).toBeNull();
     });
+
+    describe('with a price/m² range', () => {
+      beforeEach(() => {
+        areaRepository.findOne.mockResolvedValue(snapshottedArea);
+        propertyRepository.find.mockResolvedValue(
+          [1000, 1500, 1750, 2000].map((pricePerSqm) =>
+            makeProperty({
+              providerId: `p${pricePerSqm}`,
+              priceAmount: pricePerSqm * 100,
+              squareMeters: 100,
+              priceCurrency: 'EUR',
+            }),
+          ),
+        );
+      });
+
+      it('includes the lower bound and excludes the upper bound', async () => {
+        const result = await service.getContributingListings(
+          1,
+          1,
+          10,
+          undefined,
+          { min: 1500, max: 1750 },
+        );
+
+        expect(result.data.map((p: any) => p.providerId)).toEqual(['p1500']);
+        expect(result.total).toBe(1);
+        expect(result.totalPages).toBe(1);
+      });
+
+      it('has no upper bound when max is omitted, so the last bar keeps its maximum', async () => {
+        const result = await service.getContributingListings(
+          1,
+          1,
+          10,
+          undefined,
+          { min: 1750 },
+        );
+
+        expect(result.data.map((p: any) => p.providerId).sort()).toEqual([
+          'p1750',
+          'p2000',
+        ]);
+      });
+
+      it('keeps the summary area-wide', async () => {
+        const result = await service.getContributingListings(
+          1,
+          1,
+          10,
+          'p1000',
+          { min: 1500, max: 1750 },
+        );
+
+        expect(result.summary.propertyCount).toBe(4);
+        expect(result.summary.highlightedListingIncluded).toBe(true);
+      });
+    });
   });
 
   describe('getContributingListingsDistribution', () => {

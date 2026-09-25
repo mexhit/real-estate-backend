@@ -102,7 +102,10 @@ describe('AreasController', () => {
     ).resolves.toBe(result);
     expect(
       areaPriceSnapshotsService.getContributingListings,
-    ).toHaveBeenCalledWith(1, 1, 100, undefined);
+    ).toHaveBeenCalledWith(1, 1, 100, undefined, {
+      min: undefined,
+      max: undefined,
+    });
   });
 
   it('delegates fetching the Contributing Listings distribution to AreaPriceSnapshotsService', async () => {
@@ -128,6 +131,25 @@ describe('AreasController', () => {
     await controller.getContributingListings(1, 1, 10, 'provider-1');
     expect(
       areaPriceSnapshotsService.getContributingListings,
-    ).toHaveBeenCalledWith(1, 1, 10, 'provider-1');
+    ).toHaveBeenCalledWith(1, 1, 10, 'provider-1', {
+      min: undefined,
+      max: undefined,
+    });
+  });
+
+  it('parses the price/m² range and passes it through to AreaPriceSnapshotsService', async () => {
+    areaPriceSnapshotsService.getContributingListings.mockResolvedValue({});
+
+    await controller.getContributingListings(
+      1,
+      1,
+      10,
+      undefined,
+      '1500',
+      '1750',
+    );
+    expect(
+      areaPriceSnapshotsService.getContributingListings,
+    ).toHaveBeenCalledWith(1, 1, 10, undefined, { min: 1500, max: 1750 });
   });
 });

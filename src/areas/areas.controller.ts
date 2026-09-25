@@ -14,6 +14,13 @@ import {
 import { AreasService } from './areas.service';
 import { AreaPriceSnapshotsService } from './area-price-snapshots.service';
 
+function parseOptionalNumber(value?: string): number | undefined {
+  if (value == null || value === '') return undefined;
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 @Controller('areas')
 export class AreasController {
   constructor(
@@ -37,6 +44,8 @@ export class AreasController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('highlightProviderId') highlightProviderId?: string,
+    @Query('minPricePerSqm') minPricePerSqm?: string,
+    @Query('maxPricePerSqm') maxPricePerSqm?: string,
   ) {
     page = Math.max(1, Number(page));
     limit = Math.min(Math.max(1, Number(limit)), 100);
@@ -46,6 +55,10 @@ export class AreasController {
       page,
       limit,
       highlightProviderId,
+      {
+        min: parseOptionalNumber(minPricePerSqm),
+        max: parseOptionalNumber(maxPricePerSqm),
+      },
     );
   }
 

@@ -46,6 +46,21 @@ export interface ContributingListingsDistribution {
   }[];
 }
 
+// Half-open: `min` is inclusive, `max` exclusive. Omit `max` to leave the top unbounded.
+export interface PricePerSqmRange {
+  min?: number;
+  max?: number;
+}
+
+function isInPricePerSqmRange(
+  pricePerSqm: number,
+  { min, max }: PricePerSqmRange,
+): boolean {
+  return (
+    (min == null || pricePerSqm >= min) && (max == null || pricePerSqm < max)
+  );
+}
+
 @Injectable()
 export class AreaPriceSnapshotsService {
   constructor(
@@ -104,13 +119,20 @@ export class AreaPriceSnapshotsService {
     page: number,
     limit: number,
     highlightProviderId?: string,
+    pricePerSqmRange: PricePerSqmRange = {},
   ): Promise<ContributingListingsPage> {
     const { area, windowStart, windowEnd, contributingListings } =
       await this.reconstructContributingListings(areaId);
 
-    const total = contributingListings.length;
+    const listingsInRange = contributingListings.filter((property) =>
+      isInPricePerSqmRange(
+        property.priceAmount / property.squareMeters,
+        pricePerSqmRange,
+      ),
+    );
+    const total = listingsInRange.length;
     const start = (page - 1) * limit;
-    const pageOfListings = contributingListings.slice(start, start + limit);
+    const pageOfListings = listingsInRange.slice(start, start + limit);
     const highlightedListingIncluded = highlightProviderId
       ? contributingListings.some(
           (property) => property.providerId === highlightProviderId,
@@ -148,7 +170,7 @@ export class AreaPriceSnapshotsService {
         areaName: area.name,
         avgPricePerSqm: area.avgPricePerSqm,
         avgPriceCurrency: area.avgPriceCurrency,
-        propertyCount: total,
+        propertyCount: contributingListings.length,
         windowStart,
         windowEnd,
         highlightedListingIncluded,
