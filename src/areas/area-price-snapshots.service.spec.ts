@@ -407,4 +407,68 @@ describe('AreaPriceSnapshotsService', () => {
       expect(noHighlight.summary.highlightedListingIncluded).toBeNull();
     });
   });
+
+  describe('getContributingListingsDistribution', () => {
+    it('returns every Contributing Listing with its price/m², not a page of them', async () => {
+      areaRepository.findOne.mockResolvedValue({
+        id: 1,
+        name: 'Blloku',
+        avgPricePerSqm: 1500,
+        avgPriceCurrency: 'EUR',
+        snapshotPropertyCount: 2,
+        snapshotAt: new Date('2026-09-10T00:00:00Z'),
+      } as Area);
+      propertyRepository.find.mockResolvedValue([
+        makeProperty({
+          id: 1,
+          providerId: 'p1',
+          title: 'Cheap',
+          priceAmount: 100000,
+          squareMeters: 100,
+        }),
+        makeProperty({
+          id: 2,
+          providerId: 'p2',
+          title: 'Pricey',
+          priceAmount: 200000,
+          squareMeters: 100,
+        }),
+        makeProperty({ id: 3, providerId: 'p3', propertyType: 'SHOP' }),
+      ]);
+
+      const result = await service.getContributingListingsDistribution(1);
+
+      expect(result.avgPricePerSqm).toBe(1500);
+      expect(result.avgPriceCurrency).toBe('EUR');
+      expect(result.listings).toEqual(
+        expect.arrayContaining([
+          {
+            id: 1,
+            providerId: 'p1',
+            title: 'Cheap',
+            priceAmount: 100000,
+            squareMeters: 100,
+            pricePerSqm: 1000,
+          },
+          {
+            id: 2,
+            providerId: 'p2',
+            title: 'Pricey',
+            priceAmount: 200000,
+            squareMeters: 100,
+            pricePerSqm: 2000,
+          },
+        ]),
+      );
+      expect(result.listings).toHaveLength(2);
+    });
+
+    it('throws NotFoundException when the Area does not exist', async () => {
+      areaRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getContributingListingsDistribution(1),
+      ).rejects.toThrow('Area with id 1 not found');
+    });
+  });
 });

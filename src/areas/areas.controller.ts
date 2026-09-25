@@ -49,6 +49,13 @@ export class AreasController {
     );
   }
 
+  @Get(':id/contributing-listings/distribution')
+  getContributingListingsDistribution(@Param('id', ParseIntPipe) id: number) {
+    return this.areaPriceSnapshotsService.getContributingListingsDistribution(
+      id,
+    );
+  }
+
   @Post()
   create(@Body('name') name: string) {
     return this.areasService.create(name);

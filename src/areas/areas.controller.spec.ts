@@ -15,6 +15,7 @@ describe('AreasController', () => {
   };
   let areaPriceSnapshotsService: {
     getContributingListings: jest.Mock;
+    getContributingListingsDistribution: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -27,6 +28,7 @@ describe('AreasController', () => {
     };
     areaPriceSnapshotsService = {
       getContributingListings: jest.fn(),
+      getContributingListingsDistribution: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -101,6 +103,20 @@ describe('AreasController', () => {
     expect(
       areaPriceSnapshotsService.getContributingListings,
     ).toHaveBeenCalledWith(1, 1, 100, undefined);
+  });
+
+  it('delegates fetching the Contributing Listings distribution to AreaPriceSnapshotsService', async () => {
+    const result = { avgPricePerSqm: null, avgPriceCurrency: null, listings: [] };
+    areaPriceSnapshotsService.getContributingListingsDistribution.mockResolvedValue(
+      result,
+    );
+
+    await expect(
+      controller.getContributingListingsDistribution(1),
+    ).resolves.toBe(result);
+    expect(
+      areaPriceSnapshotsService.getContributingListingsDistribution,
+    ).toHaveBeenCalledWith(1);
   });
 
   it('passes highlightProviderId through to AreaPriceSnapshotsService', async () => {

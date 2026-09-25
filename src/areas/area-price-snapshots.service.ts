@@ -8,6 +8,7 @@ import { computePricePosition } from '../properties/price-position';
 import {
   dedupeToLatestCapturePerListing,
   determineDominantCurrency,
+  EligibleContributingListing,
   filterResidential,
   getSnapshotWindowStart,
   isEligibleContributingListing,
@@ -30,6 +31,19 @@ export interface ContributingListingsPage {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export interface ContributingListingsDistribution {
+  avgPricePerSqm: number | null;
+  avgPriceCurrency: string | null;
+  listings: {
+    id: number;
+    providerId: string;
+    title: string;
+    priceAmount: number;
+    squareMeters: number;
+    pricePerSqm: number;
+  }[];
 }
 
 @Injectable()
@@ -91,32 +105,8 @@ export class AreaPriceSnapshotsService {
     limit: number,
     highlightProviderId?: string,
   ): Promise<ContributingListingsPage> {
-    const area = await this.areaRepository.findOne({ where: { id: areaId } });
-
-    if (!area) {
-      throw new NotFoundException(`Area with id ${areaId} not found`);
-    }
-
-    const windowEnd = area.snapshotAt;
-    const windowStart = windowEnd ? getSnapshotWindowStart(windowEnd) : null;
-
-    const capturesInWindow =
-      windowEnd && windowStart
-        ? await this.propertyRepository.find({
-            where: {
-              areaId: area.id,
-              createdAt: Between(windowStart, windowEnd),
-            },
-          })
-        : [];
-
-    const residentialCaptures = filterResidential(capturesInWindow);
-    const deduped = dedupeToLatestCapturePerListing(residentialCaptures);
-    const contributingListings = deduped
-      .filter((property) =>
-        isEligibleContributingListing(property, area.avgPriceCurrency),
-      )
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const { area, windowStart, windowEnd, contributingListings } =
+      await this.reconstructContributingListings(areaId);
 
     const total = contributingListings.length;
     const start = (page - 1) * limit;
@@ -169,5 +159,61 @@ export class AreaPriceSnapshotsService {
       limit,
       totalPages: Math.max(1, Math.ceil(total / limit)),
     };
+  }
+
+  async getContributingListingsDistribution(
+    areaId: number,
+  ): Promise<ContributingListingsDistribution> {
+    const { area, contributingListings } =
+      await this.reconstructContributingListings(areaId);
+
+    return {
+      avgPricePerSqm: area.avgPricePerSqm,
+      avgPriceCurrency: area.avgPriceCurrency,
+      listings: contributingListings.map((property) => ({
+        id: property.id,
+        providerId: property.providerId,
+        title: property.title,
+        priceAmount: property.priceAmount,
+        squareMeters: property.squareMeters,
+        pricePerSqm: property.priceAmount / property.squareMeters,
+      })),
+    };
+  }
+
+  private async reconstructContributingListings(areaId: number): Promise<{
+    area: Area;
+    windowStart: Date | null;
+    windowEnd: Date | null;
+    contributingListings: EligibleContributingListing[];
+  }> {
+    const area = await this.areaRepository.findOne({ where: { id: areaId } });
+
+    if (!area) {
+      throw new NotFoundException(`Area with id ${areaId} not found`);
+    }
+
+    const windowEnd = area.snapshotAt;
+    const windowStart = windowEnd ? getSnapshotWindowStart(windowEnd) : null;
+
+    const capturesInWindow =
+      windowEnd && windowStart
+        ? await this.propertyRepository.find({
+            where: {
+              areaId: area.id,
+              createdAt: Between(windowStart, windowEnd),
+            },
+          })
+        : [];
+
+    const residentialCaptures = filterResidential(capturesInWindow);
+    const deduped = dedupeToLatestCapturePerListing(residentialCaptures);
+    const contributingListings = deduped
+      .filter((property) =>
+        isEligibleContributingListing(property, area.avgPriceCurrency),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    return { area, windowStart, windowEnd, contributingListings };
   }
 }
