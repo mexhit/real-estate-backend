@@ -7,10 +7,41 @@ on:
 
 jobs:
   deploy:
-    name: SSH Deploy
+    name: Build and Deploy
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Package build
+        run: tar -czf deploy.tar.gz dist package.json package-lock.json ecosystem.config.js
+
+      - name: Upload build to Droplet
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          port: 22
+          source: deploy.tar.gz
+          target: ${{ secrets.DROPLET_APP_PATH }}
+
       - name: Deploy app on Droplet
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -26,26 +57,32 @@ jobs:
             [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 
             echo "Go to app folder..."
-            cd ${{ secrets.DROPLET_APP_PATH }}
+            cd "${{ secrets.DROPLET_APP_PATH }}"
 
-            echo "Pull latest code..."
-            git fetch --all
-            git reset --hard origin/master
+            echo "Use the same Node.js version as the build..."
+            nvm install 22
+            nvm use 22
+            if ! command -v pm2 >/dev/null 2>&1; then
+              npm install --global pm2
+            fi
 
             echo "Check versions..."
             node -v
             npm -v
 
-            echo "Install dependencies..."
-            npm install
+            echo "Extract build..."
+            rm -rf dist
+            tar -xzf deploy.tar.gz
 
-            echo "Build app if needed..."
-            npm run build --if-present
+            echo "Install production dependencies..."
+            npm ci --omit=dev
 
             echo "Restart PM2..."
             pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
 
             echo "Save PM2..."
             pm2 save
+
+            rm -f deploy.tar.gz
 
             echo "Deployment complete."
