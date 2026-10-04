@@ -249,7 +249,7 @@ describe('PropertiesController', () => {
       'false',
       undefined,
       undefined,
-      ['duashpi', 'gazetacelesi'],
+      ['duashpi', 'gazetacelesi', 'century21'],
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -262,7 +262,7 @@ describe('PropertiesController', () => {
       onlyUnresolved: false,
       propertyTypes: undefined,
       areaIds: undefined,
-      sources: ['duashpi', 'gazetacelesi'],
+      sources: ['duashpi', 'gazetacelesi', 'century21'],
     });
   });
 

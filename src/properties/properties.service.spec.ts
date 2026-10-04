@@ -167,28 +167,31 @@ describe('PropertiesService', () => {
     });
   });
 
-  it('keeps an explicit recognized source from the incoming payload', async () => {
-    const property = {
-      providerId: 'provider-source',
-      source: 'gazetacelesi',
-      title: 'Apartment',
-      url: 'https://example.com/property/source',
-      description: 'Description',
-      price: '100000 EUR',
-    } as Property;
+  it.each(['gazetacelesi', 'century21'])(
+    'keeps the recognized source %s from the incoming payload',
+    async (source) => {
+      const property = {
+        providerId: 'provider-source',
+        source,
+        title: 'Apartment',
+        url: 'https://example.com/property/source',
+        description: 'Description',
+        price: '100000 EUR',
+      } as Property;
 
-    extractionService.extract.mockResolvedValue({
-      priceAmount: 100000,
-      priceCurrency: 'EUR',
-      squareMeters: 60,
-      propertyType: 'APARTMENT_1_1',
-    });
-    repository.save.mockImplementation(async (payload) => payload);
+      extractionService.extract.mockResolvedValue({
+        priceAmount: 100000,
+        priceCurrency: 'EUR',
+        squareMeters: 60,
+        propertyType: 'APARTMENT_1_1',
+      });
+      repository.save.mockImplementation(async (payload) => payload);
 
-    const saved = await service.createProperty(property);
+      const saved = await service.createProperty(property);
 
-    expect(saved).toMatchObject({ source: 'gazetacelesi' });
-  });
+      expect(saved).toMatchObject({ source });
+    },
+  );
 
   it('defaults an unrecognized or missing source to duashpi', async () => {
     const property = {
