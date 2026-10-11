@@ -71,3 +71,7 @@ _Avoid_: AI Provider (that term is reserved for text-generating accounts), Class
 **Furnished**:
 A Property Listing's judgement of whether the property comes with furniture: yes, no, or unknown. Partially furnished counts as yes. Decided once per Property Listing by the Decision Provider from its title and description; unknown when the Decision Provider is not confident either way. A Property Listing that has not been decided yet is distinct from one decided as unknown.
 _Avoid_: Has furniture, equipped
+
+**Needs Review**:
+A Property Listing that is Unresolved or Untyped — one whose Area or Property Type still has to be set by hand. A grouping label for those two states, not a stored status.
+_Avoid_: Flagged, incomplete, dirty
