@@ -137,6 +137,13 @@ export class Property {
   @JoinColumn({ name: 'areaId' })
   area?: Area | null;
 
+  @Column({ type: 'boolean', nullable: true })
+  @Index('IDX_property_is_furnished')
+  isFurnished: boolean | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  furnishedDecidedAt: Date | null;
+
   @Column({ type: 'text', nullable: true })
   aiResponseError: string | null;
 

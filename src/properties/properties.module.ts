@@ -13,6 +13,8 @@ import {
   GEMINI_PROVIDER,
   GeminiAiProviderService,
 } from './gemini-ai-provider.service';
+import { DECISION_PROVIDER } from './decision-provider.interface';
+import { JevAiProviderService } from './jev-ai-provider.service';
 import { GroqAiProviderService } from './groq-ai-provider.service';
 import { AiProviderResolver } from './ai-provider-resolver.service';
 import { PropertyAiEnrichmentJob } from './property-ai-enrichment.job';
@@ -47,6 +49,8 @@ import { SettingsModule } from '../settings/settings.module';
       inject: [ConfigService],
     },
     GroqAiProviderService,
+    JevAiProviderService,
+    { provide: DECISION_PROVIDER, useExisting: JevAiProviderService },
     AiProviderResolver,
     {
       provide: AI_PROVIDER,

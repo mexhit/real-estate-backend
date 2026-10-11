@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SettingsService } from '../settings/settings.service';
 import { AI_PROVIDER } from './ai-provider.interface';
+import { DECISION_PROVIDER } from './decision-provider.interface';
 import { AiProviderResolver } from './ai-provider-resolver.service';
 import { GEMINI_2_PROVIDER, GEMINI_PROVIDER } from './gemini-ai-provider.service';
 import { GroqAiProviderService } from './groq-ai-provider.service';
@@ -29,6 +30,7 @@ describe('AiProviderResolver', () => {
         { provide: GEMINI_2_PROVIDER, useValue: gemini2AiProviderService },
         { provide: GroqAiProviderService, useValue: groqAiProviderService },
         { provide: AI_PROVIDER, useExisting: AiProviderResolver },
+        { provide: DECISION_PROVIDER, useValue: { decideYesNo: jest.fn() } },
       ],
     }).compile();
 

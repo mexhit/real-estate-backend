@@ -23,30 +23,52 @@ export class PropertyAiEnrichmentJob {
     this.isRunning = true;
 
     try {
-      const properties =
-        await this.propertiesService.findPropertiesNeedingAiMetadata(
-          AI_METADATA_BATCH_SIZE,
-        );
-
-      if (properties.length === 0) {
-        return;
-      }
-
-      try {
-        await this.propertiesService.updatePropertiesFromAi(properties);
-      } catch (error: unknown) {
-        const message =
-          error instanceof Error
-            ? (error.stack ?? error.message)
-            : String(error);
-
-        this.logger.warn(
-          `Failed to update a batch of ${properties.length} properties from AI`,
-          message,
-        );
-      }
+      await this.enrichMetadata();
+      await this.decideFurnished();
     } finally {
       this.isRunning = false;
     }
+  }
+
+  private async enrichMetadata(): Promise<void> {
+    const properties =
+      await this.propertiesService.findPropertiesNeedingAiMetadata(
+        AI_METADATA_BATCH_SIZE,
+      );
+
+    if (properties.length === 0) {
+      return;
+    }
+
+    try {
+      await this.propertiesService.updatePropertiesFromAi(properties);
+    } catch (error: unknown) {
+      this.logger.warn(
+        `Failed to update a batch of ${properties.length} properties from AI`,
+        this.describeError(error),
+      );
+    }
+  }
+
+  private async decideFurnished(): Promise<void> {
+    try {
+      const properties =
+        await this.propertiesService.findPropertiesNeedingFurnishedDecision(
+          AI_METADATA_BATCH_SIZE,
+        );
+
+      await this.propertiesService.updateFurnishedFromDecisions(properties);
+    } catch (error: unknown) {
+      this.logger.warn(
+        'Failed to decide furnished status for a batch of properties',
+        this.describeError(error),
+      );
+    }
+  }
+
+  private describeError(error: unknown): string {
+    return error instanceof Error
+      ? (error.stack ?? error.message)
+      : String(error);
   }
 }

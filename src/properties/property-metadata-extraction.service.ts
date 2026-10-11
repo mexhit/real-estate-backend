@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   PROPERTY_TYPES,
   Property,
@@ -6,6 +6,10 @@ import {
   normalizePropertyType,
 } from './property.entity';
 import { AI_PROVIDER, AiProvider } from './ai-provider.interface';
+import {
+  DECISION_PROVIDER,
+  DecisionProvider,
+} from './decision-provider.interface';
 
 export type ExtractedPropertyMetadata = {
   priceAmount: number | null;
@@ -27,11 +31,87 @@ type RawExtractedPropertyMetadataItem = RawExtractedPropertyMetadata & {
   index?: unknown;
 };
 
+export type FurnishedDecision = {
+  isFurnished: boolean | null;
+  decided: boolean;
+};
+
+const FURNISHED_YES_THRESHOLD = 0.7;
+const FURNISHED_NO_THRESHOLD = 0.3;
+const FURNISHED_DECISION_CONCURRENCY = 5;
+
 type PropertySource = Pick<Property, 'title' | 'description' | 'price' | 'url'>;
 
 @Injectable()
 export class PropertyMetadataExtractionService {
-  constructor(@Inject(AI_PROVIDER) private readonly aiProvider: AiProvider) {}
+  private readonly logger = new Logger(PropertyMetadataExtractionService.name);
+
+  constructor(
+    @Inject(AI_PROVIDER) private readonly aiProvider: AiProvider,
+    @Inject(DECISION_PROVIDER)
+    private readonly decisionProvider: DecisionProvider,
+  ) {}
+
+  /**
+   * One JEV call per listing. `decided` is false when JEV could not answer
+   * (no key, malformed response, request failure) so the caller can retry;
+   * a probability between the thresholds is a real answer: unknown (null).
+   */
+  async decideFurnishedMany(
+    properties: Pick<Property, 'title' | 'description'>[],
+  ): Promise<FurnishedDecision[]> {
+    const decisions: FurnishedDecision[] = [];
+
+    for (
+      let i = 0;
+      i < properties.length;
+      i += FURNISHED_DECISION_CONCURRENCY
+    ) {
+      const chunk = properties.slice(i, i + FURNISHED_DECISION_CONCURRENCY);
+      decisions.push(
+        ...(await Promise.all(
+          chunk.map((property) => this.decideFurnished(property)),
+        )),
+      );
+    }
+
+    return decisions;
+  }
+
+  async decideFurnished(
+    property: Pick<Property, 'title' | 'description'>,
+  ): Promise<FurnishedDecision> {
+    try {
+      const probability = await this.decisionProvider.decideYesNo(
+        [property.title ?? '', property.description ?? ''].join('\n'),
+        'Does this real-estate listing come furnished, i.e. with furniture included? Partially furnished counts as furnished.',
+        {
+          true: 'The listing says the property is furnished or partially furnished (e.g. "i mobiluar", "me mobilim", "furnished", "me orendi", "mobiluar plotesisht").',
+          false:
+            'The listing says the property is unfurnished (e.g. "pa mobilim", "i pamobiluar", "unfurnished", "bosh"), or says nothing about furniture.',
+        },
+      );
+
+      if (probability === null) {
+        return { isFurnished: null, decided: false };
+      }
+
+      if (probability >= FURNISHED_YES_THRESHOLD) {
+        return { isFurnished: true, decided: true };
+      }
+
+      if (probability <= FURNISHED_NO_THRESHOLD) {
+        return { isFurnished: false, decided: true };
+      }
+
+      return { isFurnished: null, decided: true };
+    } catch (error: unknown) {
+      this.logger.warn(
+        `Furnished decision failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return { isFurnished: null, decided: false };
+    }
+  }
 
   async extract(
     property: PropertySource,

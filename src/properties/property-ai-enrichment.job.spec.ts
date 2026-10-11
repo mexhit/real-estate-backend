@@ -8,6 +8,8 @@ describe('PropertyAiEnrichmentJob', () => {
   let propertiesService: {
     findPropertiesNeedingAiMetadata: jest.Mock;
     updatePropertiesFromAi: jest.Mock;
+    findPropertiesNeedingFurnishedDecision: jest.Mock;
+    updateFurnishedFromDecisions: jest.Mock;
   };
   let warnSpy: jest.SpyInstance;
 
@@ -16,6 +18,8 @@ describe('PropertyAiEnrichmentJob', () => {
     propertiesService = {
       findPropertiesNeedingAiMetadata: jest.fn(),
       updatePropertiesFromAi: jest.fn(),
+      findPropertiesNeedingFurnishedDecision: jest.fn().mockResolvedValue([]),
+      updateFurnishedFromDecisions: jest.fn().mockResolvedValue([]),
     };
 
     job = new PropertyAiEnrichmentJob(
@@ -70,5 +74,35 @@ describe('PropertyAiEnrichmentJob', () => {
       'Failed to update a batch of 2 properties from AI',
       expect.stringContaining('AI batch timeout'),
     );
+  });
+
+  it('decides furnished status even when no properties need AI metadata', async () => {
+    const properties = [{ id: 7 }] as Property[];
+
+    propertiesService.findPropertiesNeedingAiMetadata.mockResolvedValue([]);
+    propertiesService.findPropertiesNeedingFurnishedDecision.mockResolvedValue(
+      properties,
+    );
+
+    await job.updatePropertiesFromAi();
+
+    expect(propertiesService.updateFurnishedFromDecisions).toHaveBeenCalledWith(
+      properties,
+    );
+  });
+
+  it('still decides furnished status when metadata enrichment fails', async () => {
+    propertiesService.findPropertiesNeedingAiMetadata.mockResolvedValue([
+      { id: 1 },
+    ]);
+    propertiesService.updatePropertiesFromAi.mockRejectedValue(
+      new Error('boom'),
+    );
+
+    await job.updatePropertiesFromAi();
+
+    expect(
+      propertiesService.findPropertiesNeedingFurnishedDecision,
+    ).toHaveBeenCalledWith(10);
   });
 });

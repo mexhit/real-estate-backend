@@ -63,3 +63,11 @@ _Avoid_: Price indicator, relative price, over/underpriced
 **AI Provider**:
 A configured account (API key, model, retry settings) used to perform AI-resolution — metadata extraction and Area resolution are the same underlying call. Multiple AI Providers can call the same underlying vendor API (e.g. `GEMINI` and `GEMINI_2` both call Gemini, with different API keys) — "AI Provider" identifies the configured account, not the vendor. Configurable system-wide; switching it takes effect immediately for new work. Distinct from the real-estate listing provider a Property Listing's `providerId` identifies.
 _Avoid_: Provider (ambiguous with the real-estate listing provider — always say "AI Provider")
+
+**Decision Provider**:
+A configured account (JEV) that answers typed questions about a Property Listing — such as yes/no — with a probability, instead of generating text. It is a different kind of provider from an AI Provider: it is never chosen through the AI Provider setting and does not take part in AI-resolution (metadata extraction, Area resolution). Currently only JEV.
+_Avoid_: AI Provider (that term is reserved for text-generating accounts), Classifier
+
+**Furnished**:
+A Property Listing's judgement of whether the property comes with furniture: yes, no, or unknown. Partially furnished counts as yes. Decided once per Property Listing by the Decision Provider from its title and description; unknown when the Decision Provider is not confident either way. A Property Listing that has not been decided yet is distinct from one decided as unknown.
+_Avoid_: Has furniture, equipped

@@ -62,6 +62,7 @@ type PropertyFilters = {
   propertyTypes?: PropertyType[];
   areaIds?: number[];
   sources?: PropertySource[];
+  isFurnished?: boolean;
 };
 
 const DEFAULT_BULK_CREATE_AI_CHUNK_SIZE = 5;
@@ -152,6 +153,11 @@ export class PropertiesService {
         `ranked_properties."source" IN (${placeholders.join(', ')})`,
       );
       whereParams.push(...filters.sources);
+    }
+
+    if (filters.isFurnished !== undefined) {
+      conditions.push(`ranked_properties."isFurnished" = $${paramIndex++}`);
+      whereParams.push(filters.isFurnished);
     }
 
     const whereSql =
@@ -814,6 +820,46 @@ export class PropertiesService {
       order: { updatedAt: 'DESC' },
       take: limit,
     });
+  }
+
+  findPropertiesNeedingFurnishedDecision(limit: number): Promise<Property[]> {
+    return this.propertyRepository.find({
+      where: { furnishedDecidedAt: IsNull() },
+      order: { id: 'DESC' },
+      take: limit,
+    });
+  }
+
+  async updateFurnishedFromDecisions(
+    properties: Property[],
+  ): Promise<Property[]> {
+    if (properties.length === 0) {
+      return [];
+    }
+
+    const decisions =
+      await this.propertyMetadataExtractionService.decideFurnishedMany(
+        properties,
+      );
+    const updatedProperties: Property[] = [];
+
+    for (let i = 0; i < properties.length; i++) {
+      const decision = decisions[i];
+
+      if (!decision.decided) {
+        continue;
+      }
+
+      updatedProperties.push(
+        await this.propertyRepository.save({
+          ...properties[i],
+          isFurnished: decision.isFurnished,
+          furnishedDecidedAt: new Date(),
+        }),
+      );
+    }
+
+    return updatedProperties;
   }
 
   queueCreateProperties(properties: Property[]): void {

@@ -60,6 +60,7 @@ describe('PropertiesController', () => {
       'APARTMENT_2_1',
       undefined,
       undefined,
+      undefined,
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -96,6 +97,7 @@ describe('PropertiesController', () => {
       'false',
       'false',
       ['APARTMENT_2_1', 'SHOP'],
+      undefined,
       undefined,
       undefined,
     );
@@ -136,6 +138,7 @@ describe('PropertiesController', () => {
       ['Apartment', 'Unknown'],
       undefined,
       undefined,
+      undefined,
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -173,6 +176,7 @@ describe('PropertiesController', () => {
       'false',
       undefined,
       ['3', '5'],
+      undefined,
       undefined,
     );
 
@@ -212,6 +216,7 @@ describe('PropertiesController', () => {
       undefined,
       ['abc'],
       undefined,
+      undefined,
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -250,6 +255,7 @@ describe('PropertiesController', () => {
       undefined,
       undefined,
       ['duashpi', 'gazetacelesi', 'century21'],
+      undefined,
     );
 
     expect(propertiesService.getProperties).toHaveBeenCalledWith(1, 10, {
@@ -264,6 +270,38 @@ describe('PropertiesController', () => {
       areaIds: undefined,
       sources: ['duashpi', 'gazetacelesi', 'century21'],
     });
+  });
+
+  it('passes the isFurnished filter to the service as a boolean', async () => {
+    propertiesService.getProperties.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
+    });
+
+    await controller.getProperties(
+      1,
+      10,
+      undefined,
+      undefined,
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+      undefined,
+      undefined,
+      undefined,
+      'true',
+    );
+
+    expect(propertiesService.getProperties).toHaveBeenCalledWith(
+      1,
+      10,
+      expect.objectContaining({ isFurnished: true }),
+    );
   });
 
   it('rejects an unrecognized source filter value', async () => {
@@ -281,6 +319,7 @@ describe('PropertiesController', () => {
         undefined,
         undefined,
         'not-a-real-source',
+        undefined,
       ),
     ).rejects.toThrow('Invalid source: not-a-real-source');
 

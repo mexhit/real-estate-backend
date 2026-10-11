@@ -1,15 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AI_PROVIDER } from './ai-provider.interface';
+import { DECISION_PROVIDER } from './decision-provider.interface';
 import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
 
 describe('PropertyMetadataExtractionService', () => {
   let service: PropertyMetadataExtractionService;
   let aiProvider: { generateText: jest.Mock };
+  let decisionProvider: { decideYesNo: jest.Mock };
 
   beforeEach(async () => {
     aiProvider = {
       generateText: jest.fn(),
     };
+    decisionProvider = { decideYesNo: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -17,6 +20,10 @@ describe('PropertyMetadataExtractionService', () => {
         {
           provide: AI_PROVIDER,
           useValue: aiProvider,
+        },
+        {
+          provide: DECISION_PROVIDER,
+          useValue: decisionProvider,
         },
       ],
     }).compile();
@@ -296,6 +303,50 @@ describe('PropertyMetadataExtractionService', () => {
       await expect(service.extractMany(properties)).rejects.toThrow(
         'AI batch metadata response is missing a result for listing index 1',
       );
+    });
+  });
+
+  describe('decideFurnished', () => {
+    const listing = { title: 'Apartament', description: 'i mobiluar' };
+
+    it.each([
+      [0.95, true, true],
+      [0.7, true, true],
+      [0.05, false, true],
+      [0.3, false, true],
+      [0.5, null, true],
+    ])(
+      'maps probability %s to %s',
+      async (probability, isFurnished, decided) => {
+        decisionProvider.decideYesNo.mockResolvedValue(probability);
+
+        await expect(service.decideFurnished(listing)).resolves.toEqual({
+          isFurnished,
+          decided,
+        });
+      },
+    );
+
+    it('is undecided when the provider cannot answer', async () => {
+      decisionProvider.decideYesNo.mockResolvedValue(null);
+
+      await expect(service.decideFurnished(listing)).resolves.toEqual({
+        isFurnished: null,
+        decided: false,
+      });
+    });
+
+    it('is undecided when the provider throws, without failing the others', async () => {
+      decisionProvider.decideYesNo
+        .mockRejectedValueOnce(new Error('JEV request failed with status 401'))
+        .mockResolvedValueOnce(0.9);
+
+      await expect(
+        service.decideFurnishedMany([listing, listing]),
+      ).resolves.toEqual([
+        { isFurnished: null, decided: false },
+        { isFurnished: true, decided: true },
+      ]);
     });
   });
 });

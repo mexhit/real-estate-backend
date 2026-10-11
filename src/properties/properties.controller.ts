@@ -44,6 +44,7 @@ export class PropertiesController {
     @Query('propertyTypes') propertyTypes: string | string[],
     @Query('areaIds') areaIds: string | string[],
     @Query('sources') sources: string | string[],
+    @Query('isFurnished') isFurnished: string,
   ) {
     // Ensure positive integers
     page = Math.max(1, Number(page));
@@ -103,6 +104,8 @@ export class PropertiesController {
       propertyTypes: propertyTypesFilter,
       areaIds: areaIdsFilter,
       sources: sourcesFilter,
+      isFurnished:
+        isFurnished === 'true' ? true : isFurnished === 'false' ? false : undefined,
     });
   }
 
