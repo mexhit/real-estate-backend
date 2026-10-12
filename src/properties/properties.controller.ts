@@ -119,6 +119,17 @@ export class PropertiesController {
     return this.propertiesService.getNewPropertiesSeries();
   }
 
+  @Get('analytics/area-distribution')
+  getAreaDistribution(
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
+    return this.propertiesService.getAreaDistribution(
+      fromDate ? new Date(Number(fromDate)) : undefined,
+      toDate ? new Date(Number(toDate)) : undefined,
+    );
+  }
+
   @Get('provider/:providerId')
   async getPropertiesByProviderId(
     @Param('providerId') providerId: string,

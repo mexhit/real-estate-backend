@@ -10,6 +10,7 @@ describe('PropertiesController', () => {
     updatePropertyFromAi: jest.Mock;
     updateProperty: jest.Mock;
     getNewPropertiesSeries: jest.Mock;
+    getAreaDistribution: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -19,6 +20,7 @@ describe('PropertiesController', () => {
       updatePropertyFromAi: jest.fn(),
       updateProperty: jest.fn(),
       getNewPropertiesSeries: jest.fn(),
+      getAreaDistribution: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -395,5 +397,18 @@ describe('PropertiesController', () => {
 
     await expect(controller.getNewPropertiesSeries()).resolves.toBe(series);
     expect(propertiesService.getNewPropertiesSeries).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes the date range to the Area Distribution analytics', async () => {
+    const distribution = [{ areaId: 1, name: 'Blloku', count: 3 }];
+    propertiesService.getAreaDistribution.mockResolvedValue(distribution);
+
+    await expect(
+      controller.getAreaDistribution('1700000000000', '1700086400000'),
+    ).resolves.toBe(distribution);
+    expect(propertiesService.getAreaDistribution).toHaveBeenCalledWith(
+      new Date(1700000000000),
+      new Date(1700086400000),
+    );
   });
 });

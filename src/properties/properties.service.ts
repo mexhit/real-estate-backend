@@ -51,6 +51,12 @@ export type PropertyManualUpdate = Partial<
   Pick<Property, ManuallyEditableField>
 >;
 
+export interface AreaDistributionPoint {
+  areaId: number | null;
+  name: string | null;
+  count: number;
+}
+
 type PropertyFilters = {
   fromDate?: Date;
   toDate?: Date;
@@ -317,6 +323,52 @@ export class PropertiesService {
     );
 
     return buildNewPropertiesSeries(rows, now);
+  }
+
+  async getAreaDistribution(
+    fromDate?: Date,
+    toDate?: Date,
+  ): Promise<AreaDistributionPoint[]> {
+    const conditions: string[] = [];
+    const params: Date[] = [];
+
+    if (fromDate) {
+      params.push(fromDate);
+      conditions.push(`latest."createdAt" >= $${params.length}`);
+    }
+    if (toDate) {
+      params.push(toDate);
+      conditions.push(`latest."createdAt" <= $${params.length}`);
+    }
+
+    const whereSql =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const rows: { areaId: number | null; name: string | null; count: string }[] =
+      await this.propertyRepository.query(
+        `
+          WITH latest AS (
+            SELECT DISTINCT ON (property."providerId")
+              property."areaId",
+              property."createdAt"
+            FROM property
+            ORDER BY property."providerId", property.id DESC
+          )
+          SELECT latest."areaId" AS "areaId", area.name AS name, COUNT(*) AS count
+          FROM latest
+          LEFT JOIN area ON area.id = latest."areaId"
+          ${whereSql}
+          GROUP BY latest."areaId", area.name
+          ORDER BY count DESC, area.name ASC
+        `,
+        params,
+      );
+
+    return rows.map((row) => ({
+      areaId: row.areaId,
+      name: row.name,
+      count: Number(row.count),
+    }));
   }
 
   async getPropertiesByProviderId(

@@ -36,6 +36,10 @@ _Avoid_: Commercial property type (only the negative is named; there's no "Comme
 A named zone a Property Listing can be AI-resolved into (e.g. "Blloku", "Tirana e Re"), uniquely identified by a normalized `key`. Areas can be soft-deleted; a soft-deleted Area's `key` becomes available for reuse. Deleting an Area requires reassigning every Property Listing currently resolved to it to another Area, atomically, as part of the same operation — an Area can never be deleted out from under a Property Listing. Only non-deleted Areas can be chosen to filter listings or as a reassignment target. An Area also carries its most recent Area Price Snapshot's value directly, for fast display.
 _Avoid_: Neighborhood, Zone
 
+**Area Distribution**:
+The number of Property Listings per Area (plus Unresolved) whose latest Capture falls in a chosen date range, shown as a pie on the Dashboard. Areas with no listings in the range are omitted. Distinct from a Snapshot's Contributing Listings: it counts every Property Type and is not limited to the Snapshot Window, so an Area's count can differ from its Contributing Listings.
+_Avoid_: Area breakdown, area stats
+
 **Unresolved**:
 A Property Listing that has not yet been AI- or manually-resolved to any Area. Only possible before resolution happens — an Area's deletion always reassigns its Property Listings rather than leaving them Unresolved.
 _Avoid_: Missing area, no area, null area
