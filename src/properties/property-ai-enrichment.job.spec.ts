@@ -105,4 +105,46 @@ describe('PropertyAiEnrichmentJob', () => {
       propertiesService.findPropertiesNeedingFurnishedDecision,
     ).toHaveBeenCalledWith(10);
   });
+
+  it('run() reports how many properties were enriched and decided', async () => {
+    propertiesService.findPropertiesNeedingAiMetadata.mockResolvedValue([
+      { id: 1 },
+      { id: 2 },
+    ]);
+    propertiesService.updatePropertiesFromAi.mockResolvedValue([
+      { id: 1 },
+      { id: 2 },
+    ]);
+    propertiesService.findPropertiesNeedingFurnishedDecision.mockResolvedValue([
+      { id: 1 },
+      { id: 2 },
+    ]);
+    propertiesService.updateFurnishedFromDecisions.mockResolvedValue([
+      { id: 1 },
+    ]);
+
+    await expect(job.run()).resolves.toEqual({
+      status: 'completed',
+      metadataUpdated: 2,
+      furnishedDecided: 1,
+    });
+  });
+
+  it('run() is skipped while a previous run is still in progress', async () => {
+    let release: () => void = () => undefined;
+    propertiesService.findPropertiesNeedingAiMetadata.mockReturnValue(
+      new Promise((resolve) => {
+        release = () => resolve([]);
+      }),
+    );
+
+    const first = job.run();
+    await expect(job.run()).resolves.toEqual({
+      status: 'skipped',
+      reason: 'already running',
+    });
+
+    release();
+    await first;
+  });
 });

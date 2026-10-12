@@ -57,5 +57,6 @@ import { SettingsModule } from '../settings/settings.module';
       useExisting: AiProviderResolver,
     },
   ],
+  exports: [PropertyAiEnrichmentJob],
 })
 export class PropertiesModule {}
