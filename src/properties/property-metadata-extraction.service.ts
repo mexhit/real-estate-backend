@@ -86,9 +86,9 @@ export class PropertyMetadataExtractionService {
         [property.title ?? '', property.description ?? ''].join('\n'),
         'Does this real-estate listing come furnished, i.e. with furniture included? Partially furnished counts as furnished.',
         {
-          true: 'The listing says the property is furnished or partially furnished (e.g. "i mobiluar", "me mobilim", "furnished", "me orendi", "mobiluar plotesisht").',
+          true: 'The listing says the property is furnished or partially furnished (e.g. "i mobiluar", "me mobilim", "furnished", "me orendi", "mobiluar plotesisht"). Indirect cues also make furnished likely: "me hipoteke" (with a mortgage) is a strong cue; "eshte pallat ekzistues" (an existing building) and "investim cilesor" (a quality investment) are weaker cues that raise the probability but are not enough alone.',
           false:
-            'The listing says the property is unfurnished (e.g. "pa mobilim", "i pamobiluar", "unfurnished", "bosh"), or says nothing about furniture.',
+            'The listing explicitly says the property is unfurnished (e.g. "pa mobilim", "i pamobiluar", "unfurnished", "bosh"). Do not answer false just because furniture is not mentioned: if the listing is silent and has no indirect cue, you are not confident either way.',
         },
       );
 
