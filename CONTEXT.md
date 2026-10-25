@@ -79,3 +79,15 @@ _Avoid_: Has furniture, equipped
 **Needs Review**:
 A Property Listing that is Unresolved or Untyped — one whose Area or Property Type still has to be set by hand. A grouping label for those two states, not a stored status.
 _Avoid_: Flagged, incomplete, dirty
+
+**Exchange Rate**:
+The buy and sell price of one foreign currency (EUR or USD) in Albanian lek (ALL), as observed at one `fetchedAt` moment. Every observation is kept, forming a history; the latest one is shown on the Dashboard. A rate for any other currency is ignored.
+_Avoid_: Currency rate, FX rate
+
+**Rate Source**:
+The website an Exchange Rate was read from (e.g. iliria98.com). Unrelated to a Property Listing's Source — always say "Rate Source" for exchange rates.
+_Avoid_: Source (reserved for the website a Capture was scraped from)
+
+**Rate Trend**:
+Whether the latest Exchange Rate's buy, or sell, is `up`, `down`, or `unchanged` against the last time that value actually moved, or `none` if it has never been seen to move. Buy and sell each have their own Rate Trend. An unchanged re-post does not reset it.
+_Avoid_: Rate change, rate direction

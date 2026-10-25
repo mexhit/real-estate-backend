@@ -9,6 +9,7 @@ import { AreasModule } from './areas/areas.module';
 import { AuthModule } from './auth/auth.module';
 import { SettingsModule } from './settings/settings.module';
 import { JobsModule } from './jobs/jobs.module';
+import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -38,6 +39,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     AreasModule,
     SettingsModule,
     JobsModule,
+    ExchangeRatesModule,
   ],
   controllers: [AppController],
   providers: [
