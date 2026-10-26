@@ -13,11 +13,17 @@ const payload = () => ({
 
 describe('ExchangeRatesService', () => {
   let service: ExchangeRatesService;
-  let repository: { create: jest.Mock; findOne: jest.Mock; save: jest.Mock };
+  let repository: {
+    create: jest.Mock;
+    find: jest.Mock;
+    findOne: jest.Mock;
+    save: jest.Mock;
+  };
 
   beforeEach(async () => {
     repository = {
       create: jest.fn((v) => v),
+      find: jest.fn(),
       findOne: jest.fn(),
       save: jest.fn(),
     };
@@ -134,6 +140,76 @@ describe('ExchangeRatesService', () => {
         sellTrend: 'none',
         previousBuy: null,
       });
+    });
+  });
+
+  describe('getHistory', () => {
+    // 2026-10-26 is after the DST change: Tirane is UTC+1 (midnight = 23:00Z).
+    const now = new Date('2026-10-26T10:00:00Z');
+    const row = (fetchedAt: string, buy: number) => ({
+      fetchedAt: new Date(fetchedAt),
+      buy,
+      sell: buy + 1,
+      source: 'iliria98',
+    });
+
+    it('rejects an unknown range or currency', async () => {
+      await expect(
+        service.getHistory('EUR', 'month' as never, now),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        service.getHistory('GBP' as never, 'today', now),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('is empty when the currency has no observations', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      const result = await service.getHistory('EUR', 'today', now);
+
+      expect(result.points).toEqual([]);
+      expect(repository.find).not.toHaveBeenCalled();
+    });
+
+    it('queries today from local midnight to now for the latest source', async () => {
+      repository.findOne.mockResolvedValue(row('2026-10-26T09:00:00Z', 90));
+      repository.find.mockResolvedValue([row('2026-10-26T09:00:00Z', 90)]);
+
+      const result = await service.getHistory('EUR', 'today', now);
+
+      const where = repository.find.mock.calls[0][0].where;
+      expect(where.source).toBe('iliria98');
+      expect(where.fetchedAt.value[0]).toEqual(
+        new Date('2026-10-25T23:00:00Z'),
+      );
+      expect(where.fetchedAt.value[1]).toEqual(now);
+      expect(result.points).toEqual([
+        { at: new Date('2026-10-26T09:00:00Z'), buy: 90, sell: 91 },
+      ]);
+    });
+
+    it('queries yesterday between the two local midnights', async () => {
+      repository.findOne.mockResolvedValue(row('2026-10-26T09:00:00Z', 90));
+      repository.find.mockResolvedValue([]);
+
+      await service.getHistory('EUR', 'yesterday', now);
+
+      const range = repository.find.mock.calls[0][0].where.fetchedAt.value;
+      expect(range[0]).toEqual(new Date('2026-10-24T22:00:00Z'));
+      expect(range[1]).toEqual(new Date('2026-10-25T23:00:00Z'));
+    });
+
+    it('keeps only the last observation of each local day for the week', async () => {
+      repository.findOne.mockResolvedValue(row('2026-10-26T09:00:00Z', 92));
+      repository.find.mockResolvedValue([
+        row('2026-10-24T08:00:00Z', 90),
+        row('2026-10-24T20:00:00Z', 91),
+        row('2026-10-26T09:00:00Z', 92),
+      ]);
+
+      const result = await service.getHistory('EUR', 'week', now);
+
+      expect(result.points.map((p) => p.buy)).toEqual([91, 92]);
     });
   });
 });

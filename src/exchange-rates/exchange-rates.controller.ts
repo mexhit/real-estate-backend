@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { AllowApiKey } from '../auth/api-key.decorator';
+import { ExchangeRateCurrency } from './exchange-rate.entity';
 import {
+  ExchangeRateHistoryRange,
   ExchangeRatesPayload,
   ExchangeRatesService,
 } from './exchange-rates.service';
@@ -18,5 +20,13 @@ export class ExchangeRatesController {
   @Get('latest')
   getLatestExchangeRates() {
     return this.exchangeRatesService.getLatest();
+  }
+
+  @Get('history')
+  getExchangeRateHistory(
+    @Query('currency') currency: ExchangeRateCurrency,
+    @Query('range') range: ExchangeRateHistoryRange,
+  ) {
+    return this.exchangeRatesService.getHistory(currency, range);
   }
 }

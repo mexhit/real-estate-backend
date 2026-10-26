@@ -91,3 +91,11 @@ _Avoid_: Source (reserved for the website a Capture was scraped from)
 **Rate Trend**:
 Whether the latest Exchange Rate's buy, or sell, is `up`, `down`, or `unchanged` against the last time that value actually moved, or `none` if it has never been seen to move. Buy and sell each have their own Rate Trend. An unchanged re-post does not reset it.
 _Avoid_: Rate change, rate direction
+
+**Rate History**:
+The Exchange Rates of one currency over a chosen range, drawn as a chart on the Dashboard. The range is `today` (every observation since local midnight), `yesterday` (every observation of the previous local day) or `week` (the last 7 local days, one point per day: that day's last observation). Days are Europe/Tirane calendar days. Only the Rate Source of the currency's latest Exchange Rate is used, so the line never mixes exchangers. A range with no observations is empty; no other period is substituted.
+_Avoid_: Rate series, rate graph
+
+**Sell Rate**:
+The headline rate on the Dashboard: the lek price the user gets when selling one unit of foreign currency. It is the Rate Source's `buy` value, because the Rate Source quotes from the exchanger's side. Rate History plots the Sell Rate.
+_Avoid_: Buy rate (for this value)
