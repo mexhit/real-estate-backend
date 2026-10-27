@@ -69,7 +69,25 @@ type PropertyFilters = {
   areaIds?: number[];
   sources?: PropertySource[];
   isFurnished?: boolean;
+  search?: string;
 };
+
+const SEARCH_MAX_CHARACTERS = 100;
+const SEARCH_MAX_WORDS = 8;
+
+function normalizeSearchWords(search?: string): string[] {
+  if (typeof search !== 'string') {
+    return [];
+  }
+
+  return search
+    .trim()
+    .slice(0, SEARCH_MAX_CHARACTERS)
+    .split(/\s+/)
+    .filter((word) => word.length > 0)
+    .slice(0, SEARCH_MAX_WORDS)
+    .map((word) => word.replace(/[\\%_]/g, '\\$&'));
+}
 
 const DEFAULT_BULK_CREATE_AI_CHUNK_SIZE = 5;
 
@@ -164,6 +182,15 @@ export class PropertiesService {
     if (filters.isFurnished !== undefined) {
       conditions.push(`ranked_properties."isFurnished" = $${paramIndex++}`);
       whereParams.push(filters.isFurnished);
+    }
+
+    for (const word of normalizeSearchWords(filters.search)) {
+      const placeholder = `$${paramIndex++}`;
+      conditions.push(
+        `(unaccent(ranked_properties."title") ILIKE '%' || unaccent(${placeholder}) || '%' ` +
+          `OR unaccent(ranked_properties."description") ILIKE '%' || unaccent(${placeholder}) || '%')`,
+      );
+      whereParams.push(word);
     }
 
     const whereSql =

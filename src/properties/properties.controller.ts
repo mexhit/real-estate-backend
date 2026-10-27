@@ -45,6 +45,7 @@ export class PropertiesController {
     @Query('areaIds') areaIds: string | string[],
     @Query('sources') sources: string | string[],
     @Query('isFurnished') isFurnished: string,
+    @Query('search') search?: string,
   ) {
     // Ensure positive integers
     page = Math.max(1, Number(page));
@@ -106,6 +107,7 @@ export class PropertiesController {
       sources: sourcesFilter,
       isFurnished:
         isFurnished === 'true' ? true : isFurnished === 'false' ? false : undefined,
+      search,
     });
   }
 

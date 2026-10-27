@@ -812,6 +812,133 @@ describe('PropertiesService', () => {
     );
   });
 
+  it('searches title or description for a word, ignoring case and accents, with the word bound as a parameter', async () => {
+    repository.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: '0' }]);
+    repository.update.mockResolvedValue({ affected: 0 });
+
+    await service.getProperties(1, 10, { search: 'Çelësi' });
+
+    const condition =
+      `(unaccent(ranked_properties."title") ILIKE '%' || unaccent($1) || '%' ` +
+      `OR unaccent(ranked_properties."description") ILIKE '%' || unaccent($1) || '%')`;
+    expect(repository.query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining(condition),
+      ['Çelësi', 10, 0],
+    );
+    expect(repository.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining(condition),
+      ['Çelësi'],
+    );
+  });
+
+  describe('search normalization', () => {
+    const wordCondition = (n: number) =>
+      `(unaccent(ranked_properties."title") ILIKE '%' || unaccent($${n}) || '%' ` +
+      `OR unaccent(ranked_properties."description") ILIKE '%' || unaccent($${n}) || '%')`;
+
+    const runSearch = async (
+      search: string,
+      extra: Record<string, unknown> = {},
+    ) => {
+      repository.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ total: '0' }]);
+      repository.update.mockResolvedValue({ affected: 0 });
+
+      await service.getProperties(1, 10, { search, ...extra });
+
+      return {
+        listSql: repository.query.mock.calls[0][0] as string,
+        listParams: repository.query.mock.calls[0][1] as unknown[],
+        countSql: repository.query.mock.calls[1][0] as string,
+        countParams: repository.query.mock.calls[1][1] as unknown[],
+      };
+    };
+
+    it('adds one condition per word, ANDed, in both the list and count queries', async () => {
+      const { listSql, listParams, countSql, countParams } = await runSearch(
+        'blloku ballkon',
+      );
+
+      const conditions = `${wordCondition(1)} AND ${wordCondition(2)}`;
+      expect(listSql).toContain(conditions);
+      expect(countSql).toContain(conditions);
+      expect(listParams).toEqual(['blloku', 'ballkon', 10, 0]);
+      expect(countParams).toEqual(['blloku', 'ballkon']);
+    });
+
+    it('ignores leading, trailing and repeated whitespace', async () => {
+      const { listParams, countParams } = await runSearch(
+        '  blloku \t  ballkon\n ',
+      );
+
+      expect(listParams).toEqual(['blloku', 'ballkon', 10, 0]);
+      expect(countParams).toEqual(['blloku', 'ballkon']);
+    });
+
+    it.each(['', '   ', ' \t\n '])(
+      'adds no condition for the empty search %j',
+      async (search) => {
+        const { listSql, listParams, countSql, countParams } =
+          await runSearch(search);
+
+        expect(listSql).not.toContain('unaccent');
+        expect(countSql).not.toContain('unaccent');
+        expect(listParams).toEqual([10, 0]);
+        expect(countParams).toEqual([]);
+      },
+    );
+
+    it('escapes %, _ and \\ so they match literally', async () => {
+      const { listParams, countParams } = await runSearch('100% 2_1 a\\b');
+
+      expect(listParams).toEqual(['100\\%', '2\\_1', 'a\\\\b', 10, 0]);
+      expect(countParams).toEqual(['100\\%', '2\\_1', 'a\\\\b']);
+    });
+
+    it('keeps only the first 100 characters', async () => {
+      const { listParams } = await runSearch(`${'a'.repeat(150)}`);
+
+      expect(listParams).toEqual(['a'.repeat(100), 10, 0]);
+    });
+
+    it('keeps only the first 8 words', async () => {
+      const { listParams } = await runSearch('a b c d e f g h i j');
+
+      expect(listParams).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 10, 0]);
+    });
+
+    it('numbers search placeholders after other filters and ahead of limit and offset', async () => {
+      const { listSql, listParams, countSql, countParams } = await runSearch(
+        'blloku',
+        { areaIds: [3, 5] },
+      );
+
+      expect(listSql).toContain('ranked_properties."areaId" IN ($1, $2)');
+      expect(listSql).toContain(wordCondition(3));
+      expect(listSql).toContain('LIMIT $4 OFFSET $5');
+      expect(countSql).toContain(wordCondition(3));
+      expect(listParams).toEqual([3, 5, 'blloku', 10, 0]);
+      expect(countParams).toEqual([3, 5, 'blloku']);
+    });
+
+    it('does not touch unaccent when no search is given', async () => {
+      repository.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ total: '0' }]);
+      repository.update.mockResolvedValue({ affected: 0 });
+
+      await service.getProperties(1, 10, {});
+
+      expect(repository.query.mock.calls[0][0]).not.toContain('unaccent');
+      expect(repository.query.mock.calls[1][0]).not.toContain('unaccent');
+    });
+  });
+
   it('joins the area table so listed properties carry an areaName', async () => {
     repository.query
       .mockResolvedValueOnce([{ id: 1, areaId: 3, areaName: 'Blloku' }])

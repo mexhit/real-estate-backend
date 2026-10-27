@@ -411,4 +411,66 @@ describe('PropertiesController', () => {
       new Date(1700086400000),
     );
   });
+  it('forwards the raw search string to the service without normalizing it', async () => {
+    propertiesService.getProperties.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
+    });
+
+    await controller.getProperties(
+      1,
+      10,
+      undefined,
+      undefined,
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '  Çelësi   ballkon ',
+    );
+
+    expect(propertiesService.getProperties).toHaveBeenCalledWith(
+      1,
+      10,
+      expect.objectContaining({ search: '  Çelësi   ballkon ' }),
+    );
+  });
+
+  it('forwards no search when it is omitted', async () => {
+    propertiesService.getProperties.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
+    });
+
+    await controller.getProperties(
+      1,
+      10,
+      undefined,
+      undefined,
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
+
+    const filters = propertiesService.getProperties.mock.calls[0][2];
+    expect(filters.search).toBeUndefined();
+  });
 });
