@@ -6,10 +6,13 @@ import { AreasService } from './areas.service';
 import { AreasController } from './areas.controller';
 import { AreaPriceSnapshotsService } from './area-price-snapshots.service';
 import { AreaPriceSnapshotJob } from './area-price-snapshot.job';
+import { ListingMark } from '../properties/listing-mark.entity';
 import { Property } from '../properties/property.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Area, AreaPriceSnapshot, Property])],
+  imports: [
+    TypeOrmModule.forFeature([Area, AreaPriceSnapshot, Property, ListingMark]),
+  ],
   controllers: [AreasController],
   providers: [AreasService, AreaPriceSnapshotsService, AreaPriceSnapshotJob],
   exports: [AreasService, AreaPriceSnapshotJob],

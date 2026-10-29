@@ -17,6 +17,8 @@ import {
   PropertySource,
   PropertyType,
 } from './property.entity';
+import { ListingMark, ListingMarkStatus } from './listing-mark.entity';
+import { attachListingMarks } from './listing-mark';
 import { PropertyEditHistory } from './property-edit-history.entity';
 import {
   ExtractedPropertyMetadata,
@@ -62,6 +64,7 @@ type PropertyFilters = {
   toDate?: Date;
   onlyUnseen?: boolean;
   onlyBookmarked?: boolean;
+  hideDismissed?: boolean;
   onlyPriceChanged?: boolean;
   onlyUntyped?: boolean;
   onlyUnresolved?: boolean;
@@ -101,6 +104,8 @@ export class PropertiesService {
     private propertyRepository: Repository<Property>,
     @InjectRepository(PropertyEditHistory)
     private propertyEditHistoryRepository: Repository<PropertyEditHistory>,
+    @InjectRepository(ListingMark)
+    private listingMarkRepository: Repository<ListingMark>,
     private readonly propertyMetadataExtractionService: PropertyMetadataExtractionService,
     private readonly areasService: AreasService,
     private readonly configService: ConfigService,
@@ -140,8 +145,16 @@ export class PropertiesService {
     }
 
     if (filters.onlyBookmarked) {
-      conditions.push(`ranked_properties."bookmarked" = $${paramIndex}`);
-      whereParams.push(true);
+      conditions.push(`ranked_properties."markStatus" = $${paramIndex}`);
+      whereParams.push('bookmarked');
+      paramIndex++;
+    }
+
+    if (filters.hideDismissed) {
+      conditions.push(
+        `ranked_properties."markStatus" IS DISTINCT FROM $${paramIndex}`,
+      );
+      whereParams.push('dismissed');
       paramIndex++;
     }
 
@@ -207,6 +220,7 @@ export class PropertiesService {
      ranked_properties AS (
        SELECT
          property.*,
+         listing_mark.status as "markStatus",
          area.name as "areaName",
          area."avgPricePerSqm" as "areaAvgPricePerSqm",
          area."avgPriceCurrency" as "areaAvgPriceCurrency",
@@ -221,6 +235,7 @@ export class PropertiesService {
        FROM property
               LEFT JOIN price_change_check pcc ON pcc."providerId" = property."providerId"
               LEFT JOIN area ON area.id = property."areaId"
+              LEFT JOIN listing_mark ON listing_mark."providerId" = property."providerId"
      )
       SELECT *
       FROM ranked_properties
@@ -248,9 +263,11 @@ export class PropertiesService {
            MIN(property."createdAt") OVER (PARTITION BY property."providerId") as first_post,
            MAX(property."createdAt") OVER (PARTITION BY property."providerId") as last_post,
            FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id ASC) as first_price,
-           FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as last_price
+           FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as last_price,
+           listing_mark.status as "markStatus"
          FROM property
                 LEFT JOIN price_change_check pcc ON pcc."providerId" = property."providerId"
+                LEFT JOIN listing_mark ON listing_mark."providerId" = property."providerId"
        )
         SELECT COUNT(*) as total
         FROM ranked_properties
@@ -284,8 +301,12 @@ export class PropertiesService {
         },
       );
 
+      const { markStatus, ...row } = entity;
+
       return {
-        ...entity,
+        ...row,
+        bookmarked: markStatus === 'bookmarked',
+        dismissed: markStatus === 'dismissed',
         providerPropertyCount: Number(entity.provider_property_count || 0),
         hasPriceChanged: entity.has_price_changed,
         firstPostedAt: entity.first_post,
@@ -371,9 +392,12 @@ export class PropertiesService {
     const whereSql =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const rows: { areaId: number | null; name: string | null; count: string }[] =
-      await this.propertyRepository.query(
-        `
+    const rows: {
+      areaId: number | null;
+      name: string | null;
+      count: string;
+    }[] = await this.propertyRepository.query(
+      `
           WITH latest AS (
             SELECT DISTINCT ON (property."providerId")
               property."areaId",
@@ -388,8 +412,8 @@ export class PropertiesService {
           GROUP BY latest."areaId", area.name
           ORDER BY count DESC, area.name ASC
         `,
-        params,
-      );
+      params,
+    );
 
     return rows.map((row) => ({
       areaId: row.areaId,
@@ -413,7 +437,12 @@ export class PropertiesService {
       relations: ['area'],
     });
 
-    const enrichedData = data.map(({ area, ...property }) => {
+    const markedData = await attachListingMarks(
+      this.listingMarkRepository,
+      data,
+    );
+
+    const enrichedData = markedData.map(({ area, ...property }) => {
       const { pricePosition, pricePositionPercentage } = computePricePosition(
         {
           priceAmount: property.priceAmount,
@@ -953,8 +982,40 @@ export class PropertiesService {
     });
   }
 
-  bookmarkProperty(id: number, bookmarked: boolean = true) {
-    return this.propertyRepository.update({ id }, { bookmarked });
+  async bookmarkProperty(id: number, bookmarked: boolean = true) {
+    await this.setListingMark(id, 'bookmarked', bookmarked);
+  }
+
+  async dismissProperty(id: number, dismissed: boolean = true) {
+    await this.setListingMark(id, 'dismissed', dismissed);
+  }
+
+  private async setListingMark(
+    id: number,
+    status: ListingMarkStatus,
+    marked: boolean,
+  ) {
+    const property = await this.propertyRepository.findOne({
+      where: { id },
+      select: { id: true, providerId: true },
+    });
+
+    if (!property) {
+      throw new NotFoundException(`Property with id ${id} not found`);
+    }
+
+    if (marked) {
+      await this.listingMarkRepository.save({
+        providerId: property.providerId,
+        status,
+      });
+      return;
+    }
+
+    await this.listingMarkRepository.delete({
+      providerId: property.providerId,
+      status,
+    });
   }
 
   async markPropertiesAsSeen(ids: number[]): Promise<void> {

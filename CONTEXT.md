@@ -5,7 +5,7 @@ This context describes property listings collected from external real-estate pro
 ## Language
 
 **Property Listing**:
-A distinct listing identified by its provider-specific `providerId`, regardless of how many times it is captured.
+A distinct listing identified by the `providerId` its provider gave it, regardless of how many times it is captured or re-posted.
 _Avoid_: Property record, posting
 
 **Capture**:
@@ -13,7 +13,7 @@ A single stored observation of a Property Listing (one row in the `property` tab
 _Avoid_: Property record, duplicate
 
 **Source**:
-The external website a Capture was scraped from (e.g. `duashpi`, `gazetacelesi`), recorded on each Capture at creation and never re-derived afterward. Distinct from both the real-estate listing provider identified by `providerId` (the agency/broker who posted the listing) and the AI Provider (the AI vendor account) — three separate "who/where" concepts that must not be conflated.
+The external website a Capture was scraped from (e.g. `duashpi`, `gazetacelesi`), recorded on each Capture at creation and never re-derived afterward. Distinct from both the real-estate listing provider that posted the listing and the AI Provider (the AI vendor account) — separate "who/where" concepts that must not be conflated.
 _Avoid_: Provider, Site (bare "provider" is reserved for the real-estate listing provider or the AI Provider — always say "Source" for the originating website)
 
 **New Property**:
@@ -79,6 +79,14 @@ _Avoid_: Has furniture, equipped
 **Search**:
 A free-text filter on the Property Listing list. A Property Listing matches when every word typed appears in the title or the description of its latest Capture, ignoring case and accents. The words may be spread across title and description. Combines with every other filter, and does not change the list's ordering.
 _Avoid_: Query, keyword filter, find
+
+**Bookmarked**:
+A Property Listing marked by the user as one to keep an eye on. Belongs to the Property Listing, not to a Capture, so it survives a re-post. Shared by all users. A Property Listing is never both Bookmarked and Dismissed: marking one clears the other.
+_Avoid_: Favorite, saved, starred
+
+**Dismissed**:
+A Property Listing the user has looked at and rejected (a scam, or it did not meet expectations). Belongs to the Property Listing, not to a Capture, so a re-post still shows it as Dismissed. A Dismissed listing stays in the list with an indicator; a "Hide dismissed" filter, off by default, removes it. No reason is recorded. Shared by all users. Distinct from seen, which only means the listing was opened.
+_Avoid_: Rejected, not interested, ignored, hidden
 
 **Needs Review**:
 A Property Listing that is Unresolved or Untyped — one whose Area or Property Type still has to be set by hand. A grouping label for those two states, not a stored status.

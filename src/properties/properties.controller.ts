@@ -14,10 +14,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { Request } from 'express';
-import {
-  PropertiesService,
-  PropertyManualUpdate,
-} from './properties.service';
+import { PropertiesService, PropertyManualUpdate } from './properties.service';
 import {
   normalizePropertySource,
   normalizePropertyType,
@@ -38,6 +35,7 @@ export class PropertiesController {
     @Query('toDate') toDate: string,
     @Query('onlyUnseen') onlyUnseen: string,
     @Query('onlyBookmarked') onlyBookmarked: string,
+    @Query('hideDismissed') hideDismissed: string,
     @Query('onlyPriceChanged') onlyPriceChanged: string,
     @Query('onlyUntyped') onlyUntyped: string,
     @Query('onlyUnresolved') onlyUnresolved: string,
@@ -54,6 +52,7 @@ export class PropertiesController {
     const toDateObj = toDate ? new Date(Number(toDate)) : undefined;
     const onlyUnseenBool = onlyUnseen === 'true';
     const onlyBookmarkedBool = onlyBookmarked === 'true';
+    const hideDismissedBool = hideDismissed === 'true';
     const onlyPriceChangedBool = onlyPriceChanged === 'true';
     const onlyUntypedBool = onlyUntyped === 'true';
     const onlyUnresolvedBool = onlyUnresolved === 'true';
@@ -66,9 +65,7 @@ export class PropertiesController {
     const propertyTypesFilter =
       normalizedPropertyTypes.length > 0 ? normalizedPropertyTypes : undefined;
 
-    const normalizedAreaIds = (
-      Array.isArray(areaIds) ? areaIds : [areaIds]
-    )
+    const normalizedAreaIds = (Array.isArray(areaIds) ? areaIds : [areaIds])
       .map((value) => Number(value))
       .filter((value) => Number.isInteger(value));
 
@@ -76,11 +73,7 @@ export class PropertiesController {
       normalizedAreaIds.length > 0 ? normalizedAreaIds : undefined;
 
     const rawSources =
-      sources === undefined
-        ? []
-        : Array.isArray(sources)
-          ? sources
-          : [sources];
+      sources === undefined ? [] : Array.isArray(sources) ? sources : [sources];
     const normalizedSources = rawSources.map((value) => {
       const normalized = normalizePropertySource(value);
 
@@ -99,6 +92,7 @@ export class PropertiesController {
       toDate: toDateObj,
       onlyUnseen: onlyUnseenBool,
       onlyBookmarked: onlyBookmarkedBool,
+      hideDismissed: hideDismissedBool,
       onlyPriceChanged: onlyPriceChangedBool,
       onlyUntyped: onlyUntypedBool,
       onlyUnresolved: onlyUnresolvedBool,
@@ -106,7 +100,11 @@ export class PropertiesController {
       areaIds: areaIdsFilter,
       sources: sourcesFilter,
       isFurnished:
-        isFurnished === 'true' ? true : isFurnished === 'false' ? false : undefined,
+        isFurnished === 'true'
+          ? true
+          : isFurnished === 'false'
+            ? false
+            : undefined,
       search,
     });
   }
@@ -159,17 +157,21 @@ export class PropertiesController {
     return this.propertiesService.bookmarkProperty(id, bookmarkedBool);
   }
 
+  @Put(':id/dismiss/:dismissed(true|false)')
+  dismissProperty(
+    @Param('id') id: number,
+    @Param('dismissed') dismissed: string,
+  ) {
+    return this.propertiesService.dismissProperty(id, dismissed === 'true');
+  }
+
   @Patch(':id')
   updateProperty(
     @Param('id', ParseIntPipe) id: number,
     @Body() updates: PropertyManualUpdate,
     @Req() request: Request & { user: UserResponse },
   ) {
-    return this.propertiesService.updateProperty(
-      id,
-      updates,
-      request.user.id,
-    );
+    return this.propertiesService.updateProperty(id, updates, request.user.id);
   }
 
   @Post()

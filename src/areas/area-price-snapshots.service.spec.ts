@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { AreaPriceSnapshotsService } from './area-price-snapshots.service';
 import { Area } from './area.entity';
 import { AreaPriceSnapshot } from './area-price-snapshot.entity';
+import { ListingMark } from '../properties/listing-mark.entity';
 import { Property } from '../properties/property.entity';
 
 function makeProperty(overrides: Partial<Property>): Property {
@@ -52,6 +53,10 @@ describe('AreaPriceSnapshotsService', () => {
           useValue: snapshotRepository,
         },
         { provide: getRepositoryToken(Area), useValue: areaRepository },
+        {
+          provide: getRepositoryToken(ListingMark),
+          useValue: { find: jest.fn().mockResolvedValue([]) },
+        },
       ],
     }).compile();
 

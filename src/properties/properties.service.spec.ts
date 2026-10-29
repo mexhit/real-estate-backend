@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { IsNull, MoreThanOrEqual, Not } from 'typeorm';
 import { PropertiesService } from './properties.service';
 import { Property } from './property.entity';
+import { ListingMark } from './listing-mark.entity';
 import { PropertyEditHistory } from './property-edit-history.entity';
 import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
 import { AreasService } from '../areas/areas.service';
@@ -20,6 +21,11 @@ describe('PropertiesService', () => {
     update: jest.Mock;
   };
   let editHistoryRepository: { insert: jest.Mock };
+  let listingMarkRepository: {
+    save: jest.Mock;
+    delete: jest.Mock;
+    find: jest.Mock;
+  };
   let extractionService: { extract: jest.Mock; extractMany: jest.Mock };
   let areasService: {
     listActiveNames: jest.Mock;
@@ -39,6 +45,11 @@ describe('PropertiesService', () => {
     };
     editHistoryRepository = {
       insert: jest.fn(),
+    };
+    listingMarkRepository = {
+      save: jest.fn(),
+      delete: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
     };
     extractionService = {
       extract: jest.fn(),
@@ -65,6 +76,10 @@ describe('PropertiesService', () => {
           useValue: editHistoryRepository,
         },
         {
+          provide: getRepositoryToken(ListingMark),
+          useValue: listingMarkRepository,
+        },
+        {
           provide: PropertyMetadataExtractionService,
           useValue: extractionService,
         },
@@ -84,6 +99,92 @@ describe('PropertiesService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('listing marks', () => {
+    beforeEach(() => {
+      repository.findOne.mockResolvedValue({ id: 7, providerId: 'provider-7' });
+    });
+
+    it('bookmarks the listing by its providerId', async () => {
+      await service.bookmarkProperty(7, true);
+
+      expect(listingMarkRepository.save).toHaveBeenCalledWith({
+        providerId: 'provider-7',
+        status: 'bookmarked',
+      });
+    });
+
+    it('dismissing replaces a bookmark on the same listing', async () => {
+      await service.dismissProperty(7, true);
+
+      expect(listingMarkRepository.save).toHaveBeenCalledWith({
+        providerId: 'provider-7',
+        status: 'dismissed',
+      });
+    });
+
+    it('un-bookmarking only removes a bookmark, not a dismissal', async () => {
+      await service.bookmarkProperty(7, false);
+
+      expect(listingMarkRepository.delete).toHaveBeenCalledWith({
+        providerId: 'provider-7',
+        status: 'bookmarked',
+      });
+    });
+
+    it('un-dismissing deletes the dismissed mark', async () => {
+      await service.dismissProperty(7, false);
+
+      expect(listingMarkRepository.delete).toHaveBeenCalledWith({
+        providerId: 'provider-7',
+        status: 'dismissed',
+      });
+    });
+
+    it('rejects marking an unknown property', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      await expect(service.dismissProperty(99, true)).rejects.toThrow(
+        'Property with id 99 not found',
+      );
+    });
+
+    it('reports the listing mark on each list item', async () => {
+      repository.query
+        .mockResolvedValueOnce([
+          { id: 2, providerId: 'a', markStatus: 'dismissed' },
+          { id: 1, providerId: 'b', markStatus: 'bookmarked' },
+          { id: 3, providerId: 'c', markStatus: null },
+        ])
+        .mockResolvedValueOnce([{ total: '3' }]);
+
+      const result = await service.getProperties(1, 10, {});
+
+      expect(
+        result.data.map(({ dismissed, bookmarked }) => ({
+          dismissed,
+          bookmarked,
+        })),
+      ).toEqual([
+        { dismissed: true, bookmarked: false },
+        { dismissed: false, bookmarked: true },
+        { dismissed: false, bookmarked: false },
+      ]);
+    });
+
+    it('hides dismissed listings when asked', async () => {
+      repository.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ total: '0' }]);
+
+      await service.getProperties(1, 10, { hideDismissed: true });
+
+      expect(repository.query.mock.calls[0][0]).toContain(
+        'ranked_properties."markStatus" IS DISTINCT FROM',
+      );
+      expect(repository.query.mock.calls[0][1]).toContain('dismissed');
+    });
   });
 
   it('enriches raw properties before saving them', async () => {
@@ -373,6 +474,10 @@ describe('PropertiesService', () => {
           {
             provide: getRepositoryToken(PropertyEditHistory),
             useValue: editHistoryRepository,
+          },
+          {
+            provide: getRepositoryToken(ListingMark),
+            useValue: listingMarkRepository,
           },
           {
             provide: PropertyMetadataExtractionService,
@@ -860,9 +965,8 @@ describe('PropertiesService', () => {
     };
 
     it('adds one condition per word, ANDed, in both the list and count queries', async () => {
-      const { listSql, listParams, countSql, countParams } = await runSearch(
-        'blloku ballkon',
-      );
+      const { listSql, listParams, countSql, countParams } =
+        await runSearch('blloku ballkon');
 
       const conditions = `${wordCondition(1)} AND ${wordCondition(2)}`;
       expect(listSql).toContain(conditions);
@@ -909,7 +1013,18 @@ describe('PropertiesService', () => {
     it('keeps only the first 8 words', async () => {
       const { listParams } = await runSearch('a b c d e f g h i j');
 
-      expect(listParams).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 10, 0]);
+      expect(listParams).toEqual([
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+        'g',
+        'h',
+        10,
+        0,
+      ]);
     });
 
     it('numbers search placeholders after other filters and ahead of limit and offset', async () => {

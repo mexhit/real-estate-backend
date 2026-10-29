@@ -154,10 +154,6 @@ export class Property {
   @Index('IDX_property_seen')
   seen: boolean;
 
-  @Column({ default: false })
-  @Index('IDX_property_bookmarked')
-  bookmarked: boolean;
-
   @Column({ type: 'text', array: true, default: () => "'{}'" })
   manuallyEditedFields: string[];
 

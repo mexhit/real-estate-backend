@@ -4,6 +4,8 @@ import { Between, MoreThanOrEqual, Repository } from 'typeorm';
 import { Area } from './area.entity';
 import { AreaPriceSnapshot } from './area-price-snapshot.entity';
 import { Property } from '../properties/property.entity';
+import { ListingMark } from '../properties/listing-mark.entity';
+import { attachListingMarks } from '../properties/listing-mark';
 import { computePricePosition } from '../properties/price-position';
 import {
   dedupeToLatestCapturePerListing,
@@ -70,6 +72,8 @@ export class AreaPriceSnapshotsService {
     private readonly snapshotRepository: Repository<AreaPriceSnapshot>,
     @InjectRepository(Area)
     private readonly areaRepository: Repository<Area>,
+    @InjectRepository(ListingMark)
+    private readonly listingMarkRepository: Repository<ListingMark>,
   ) {}
 
   async computeSnapshotForArea(area: Area): Promise<AreaPriceSnapshot> {
@@ -139,7 +143,12 @@ export class AreaPriceSnapshotsService {
         )
       : null;
 
-    const enrichedData = pageOfListings.map((property) => {
+    const markedListings = await attachListingMarks(
+      this.listingMarkRepository,
+      pageOfListings,
+    );
+
+    const enrichedData = markedListings.map((property) => {
       const { pricePosition, pricePositionPercentage } = computePricePosition(
         {
           priceAmount: property.priceAmount,
