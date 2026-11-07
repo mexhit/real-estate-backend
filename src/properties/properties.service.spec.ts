@@ -968,11 +968,10 @@ describe('PropertiesService', () => {
       };
     };
 
-    it('finds the listing owning any Capture with that id', async () => {
+    it('finds exactly the Capture with that id, even when not the latest', async () => {
       const { listSql, listParams, countParams } = await run({ id: ' 42 ' });
-      expect(listSql).toContain(
-        'ranked_properties."providerId" IN (SELECT "providerId" FROM property WHERE id = $1)',
-      );
+      expect(listSql).toContain('ranked_properties.id = $1');
+      expect(listSql).not.toContain('rn = 1');
       expect(listParams).toEqual([42, 10, 0]);
       expect(countParams).toEqual([42]);
     });
@@ -989,6 +988,7 @@ describe('PropertiesService', () => {
     it('matches the providerId exactly as stored', async () => {
       const { listSql, listParams } = await run({ providerId: ' Ab-12 ' });
       expect(listSql).toContain('ranked_properties."providerId" = $1');
+      expect(listSql).not.toContain('rn = 1');
       expect(listParams).toEqual(['Ab-12', 10, 0]);
     });
 
@@ -996,6 +996,7 @@ describe('PropertiesService', () => {
       const { listSql, listParams } = await run({ id: v, providerId: v });
       expect(listSql).not.toContain('FALSE');
       expect(listSql).not.toContain('ranked_properties."providerId" =');
+      expect(listSql).toContain('rn = 1');
       expect(listParams).toEqual([10, 0]);
     });
   });

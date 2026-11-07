@@ -75,7 +75,7 @@ type PropertyFilters = {
   sources?: PropertySource[];
   isFurnished?: boolean;
   search?: string;
-  // Exact lookups: the `id` of any Capture, and the stored `providerId`.
+  // Exact lookups, listed per Capture: the Capture `id`, and the stored `providerId`.
   id?: string;
   providerId?: string;
 };
@@ -216,9 +216,7 @@ export class PropertiesService {
       const captureId = filters.id.trim();
 
       if (/^\d{1,9}$/.test(captureId)) {
-        conditions.push(
-          `ranked_properties."providerId" IN (SELECT "providerId" FROM property WHERE id = $${paramIndex++})`,
-        );
+        conditions.push(`ranked_properties.id = $${paramIndex++}`);
         whereParams.push(Number(captureId));
       } else {
         conditions.push('FALSE');
@@ -235,6 +233,13 @@ export class PropertiesService {
 
     const whereSql =
       conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
+
+    // An exact search lists Captures, not listings: every Capture is judged on
+    // its own fields instead of only the latest Capture of each listing.
+    const isExactSearch = [filters.id, filters.providerId].some(
+      (value) => typeof value === 'string' && value.trim() !== '',
+    );
+    const rowScope = isExactSearch ? 'TRUE' : 'rn = 1';
 
     const query = `
       WITH price_change_check AS (
@@ -268,7 +273,7 @@ export class PropertiesService {
      )
       SELECT *
       FROM ranked_properties
-      WHERE rn = 1 ${whereSql}
+      WHERE ${rowScope} ${whereSql}
       ORDER BY id DESC
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
@@ -300,7 +305,7 @@ export class PropertiesService {
        )
         SELECT COUNT(*) as total
         FROM ranked_properties
-        WHERE rn = 1 ${whereSql}
+        WHERE ${rowScope} ${whereSql}
     `;
 
     const [data, [{ total }]] = await Promise.all([
