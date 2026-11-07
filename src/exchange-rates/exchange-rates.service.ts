@@ -1,6 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, LessThan, Not, Repository } from 'typeorm';
+import {
+  Between,
+  LessThan,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+  Not,
+  Repository,
+} from 'typeorm';
+import { ConversionRates } from './convert-to-eur';
 import {
   EXCHANGE_RATE_CURRENCIES,
   EXCHANGE_RATE_QUOTE_CURRENCY,
@@ -225,6 +233,52 @@ export class ExchangeRatesService {
     }
 
     return result;
+  }
+
+  /**
+   * Sell Rates (the stored `buy` value, lek per unit) closest to `at`, from
+   * the Rate Source of the latest euro rate. A moment before the first rate
+   * gets the earliest one; a moment after the last gets the latest one.
+   */
+  async getConversionRates(at: Date): Promise<ConversionRates> {
+    const latestEuro = await this.repository.findOne({
+      where: { currency: 'EUR' },
+      order: { fetchedAt: 'DESC', id: 'DESC' },
+    });
+    if (!latestEuro) return {};
+
+    const rates: ConversionRates = {};
+    for (const currency of EXCHANGE_RATE_CURRENCIES) {
+      const [before, after] = await Promise.all([
+        this.repository.findOne({
+          where: {
+            currency,
+            source: latestEuro.source,
+            fetchedAt: LessThanOrEqual(at),
+          },
+          order: { fetchedAt: 'DESC', id: 'DESC' },
+        }),
+        this.repository.findOne({
+          where: {
+            currency,
+            source: latestEuro.source,
+            fetchedAt: MoreThanOrEqual(at),
+          },
+          order: { fetchedAt: 'ASC', id: 'ASC' },
+        }),
+      ]);
+
+      const closest =
+        before && after
+          ? at.getTime() - before.fetchedAt.getTime() <=
+            after.fetchedAt.getTime() - at.getTime()
+            ? before
+            : after
+          : (before ?? after);
+      if (closest) rates[currency] = closest.buy;
+    }
+
+    return rates;
   }
 
   async getHistory(

@@ -33,6 +33,8 @@ import {
 } from './new-properties-series.helper';
 import { AreasService } from '../areas/areas.service';
 import { computePricePosition } from './price-position';
+import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
+import { convertToEur } from '../exchange-rates/convert-to-eur';
 
 export type { NewPropertySeriesPoint } from './new-properties-series.helper';
 
@@ -109,6 +111,7 @@ export class PropertiesService {
     private readonly propertyMetadataExtractionService: PropertyMetadataExtractionService,
     private readonly areasService: AreasService,
     private readonly configService: ConfigService,
+    private readonly exchangeRatesService: ExchangeRatesService,
   ) {
     this.bulkCreateAiChunkSize = Math.max(
       1,
@@ -290,13 +293,11 @@ export class PropertiesService {
           : null;
       const { pricePosition, pricePositionPercentage } = computePricePosition(
         {
-          priceAmount: entity.priceAmount,
-          priceCurrency: entity.priceCurrency,
+          priceEur: entity.priceEur,
           squareMeters: entity.squareMeters,
         },
         {
           avgPricePerSqm: areaAvgPricePerSqm,
-          avgPriceCurrency: entity.areaAvgPriceCurrency,
           snapshotPropertyCount: areaSnapshotPropertyCount,
         },
       );
@@ -445,14 +446,12 @@ export class PropertiesService {
     const enrichedData = markedData.map(({ area, ...property }) => {
       const { pricePosition, pricePositionPercentage } = computePricePosition(
         {
-          priceAmount: property.priceAmount,
-          priceCurrency: property.priceCurrency,
+          priceEur: property.priceEur,
           squareMeters: property.squareMeters,
         },
         area
           ? {
               avgPricePerSqm: area.avgPricePerSqm,
-              avgPriceCurrency: area.avgPriceCurrency,
               snapshotPropertyCount: area.snapshotPropertyCount,
             }
           : null,
@@ -503,11 +502,13 @@ export class PropertiesService {
     }
 
     return this.propertyRepository.save(
-      this.buildCreatePayload(
-        property,
-        extractedMetadata,
-        resolvedAreaId,
-        aiResponseError,
+      await this.withPriceEur(
+        this.buildCreatePayload(
+          property,
+          extractedMetadata,
+          resolvedAreaId,
+          aiResponseError,
+        ),
       ),
     );
   }
@@ -553,11 +554,13 @@ export class PropertiesService {
 
         createdProperties.push(
           await this.propertyRepository.save(
-            this.buildCreatePayload(
-              property,
-              extractedMetadata,
-              resolvedAreaId,
-              aiResponseError,
+            await this.withPriceEur(
+              this.buildCreatePayload(
+                property,
+                extractedMetadata,
+                resolvedAreaId,
+                aiResponseError,
+              ),
             ),
           ),
         );
@@ -565,6 +568,27 @@ export class PropertiesService {
     }
 
     return createdProperties;
+  }
+
+  // Euro Price is derived from the Original Price (priceAmount + priceCurrency)
+  // at the rate closest to when the Capture was made. Never taken from a client.
+  private async withPriceEur<
+    T extends Pick<Property, 'priceAmount' | 'priceCurrency'> & {
+      createdAt?: Date;
+    },
+  >(property: T): Promise<T & { priceEur: number | null }> {
+    const rates = await this.exchangeRatesService.getConversionRates(
+      property.createdAt ?? new Date(),
+    );
+
+    return {
+      ...property,
+      priceEur: convertToEur(
+        property.priceAmount,
+        property.priceCurrency,
+        rates,
+      ),
+    };
   }
 
   private buildCreatePayload(
@@ -672,11 +696,13 @@ export class PropertiesService {
       ]),
     );
 
-    const saved = await this.propertyRepository.save({
-      ...property,
-      ...patch,
-      manuallyEditedFields,
-    });
+    const saved = await this.propertyRepository.save(
+      await this.withPriceEur({
+        ...property,
+        ...patch,
+        manuallyEditedFields,
+      }),
+    );
 
     await this.propertyEditHistoryRepository.insert(
       changes.map((change) => ({
@@ -811,18 +837,20 @@ export class PropertiesService {
 
       const areaId = await this.resolveAreaId(extractedMetadata.areaName);
 
-      saved = await this.propertyRepository.save({
-        ...property,
-        ...this.buildAiFieldPatch(property, {
-          priceAmount: extractedMetadata.priceAmount,
-          priceCurrency: extractedMetadata.priceCurrency,
-          squareMeters: extractedMetadata.squareMeters,
-          propertyType: extractedMetadata.propertyType,
-          areaId,
+      saved = await this.propertyRepository.save(
+        await this.withPriceEur({
+          ...property,
+          ...this.buildAiFieldPatch(property, {
+            priceAmount: extractedMetadata.priceAmount,
+            priceCurrency: extractedMetadata.priceCurrency,
+            squareMeters: extractedMetadata.squareMeters,
+            propertyType: extractedMetadata.propertyType,
+            areaId,
+          }),
+          aiResponseError: null,
+          aiMetadataUpdatedAt: new Date(),
         }),
-        aiResponseError: null,
-        aiMetadataUpdatedAt: new Date(),
-      });
+      );
     } catch (error: unknown) {
       const aiResponseError = this.formatAiResponseError(error);
 
@@ -893,18 +921,20 @@ export class PropertiesService {
       const areaId = await this.resolveAreaId(extractedMetadata.areaName);
 
       updatedProperties.push(
-        await this.propertyRepository.save({
-          ...property,
-          ...this.buildAiFieldPatch(property, {
-            priceAmount: extractedMetadata.priceAmount,
-            priceCurrency: extractedMetadata.priceCurrency,
-            squareMeters: extractedMetadata.squareMeters,
-            propertyType: extractedMetadata.propertyType,
-            areaId,
+        await this.propertyRepository.save(
+          await this.withPriceEur({
+            ...property,
+            ...this.buildAiFieldPatch(property, {
+              priceAmount: extractedMetadata.priceAmount,
+              priceCurrency: extractedMetadata.priceCurrency,
+              squareMeters: extractedMetadata.squareMeters,
+              propertyType: extractedMetadata.propertyType,
+              areaId,
+            }),
+            aiResponseError: null,
+            aiMetadataUpdatedAt: new Date(),
           }),
-          aiResponseError: null,
-          aiMetadataUpdatedAt: new Date(),
-        }),
+        ),
       );
     }
 

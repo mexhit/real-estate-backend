@@ -8,5 +8,6 @@ import { ExchangeRatesController } from './exchange-rates.controller';
   imports: [TypeOrmModule.forFeature([ExchangeRate])],
   controllers: [ExchangeRatesController],
   providers: [ExchangeRatesService],
+  exports: [ExchangeRatesService],
 })
 export class ExchangeRatesModule {}

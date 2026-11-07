@@ -52,16 +52,24 @@ _Avoid_: Area stats, price history entry, weekly pricing job (it isn't only week
 The 30-day period ending at an Area Price Snapshot run's time. A Capture must fall within this window for its Property Listing to be considered for that Snapshot.
 _Avoid_: Lookback period, pricing window
 
-**Dominant Currency**:
-The currency shared by the largest number of eligible Property Listings feeding one Area Price Snapshot. Listings priced in a different currency, or with no currency, are excluded from that Snapshot.
+**Euro Price**:
+A Capture's price in euros — the single currency every calculation and every on-screen price uses. Always derived from the Capture's Original Price, never set on its own: it is the Original Price's amount converted from lek or dollars at the Exchange Rate closest to when the Capture was made, rounded to whole euros. Because it is a pure function of the Original Price and the recorded Exchange Rates, it can be recomputed at any time with the same result, and later rate moves do not change it. A price in any other currency, or no currency, has no Euro Price and is left out of every calculation. Users never edit it: correcting the Original Price recomputes it.
+_Avoid_: Converted price, normalized price, base price
+
+**Original Price**:
+The source of truth for what a Capture costs: an amount and a currency, read from the price text the Source showed (AI-read, correctable by hand). Never shown as the price and never used in calculations — the Euro Price is derived from it.
+_Avoid_: Raw price, listed price
+
+**Dominant Currency** _(retired)_:
+Formerly the currency shared by most listings in an Area Price Snapshot, with other currencies excluded. Replaced by Euro Price: every Snapshot is in euros and no listing is excluded for its currency. Snapshots recorded before the change keep the currency they were computed in.
 _Avoid_: Primary currency, base currency
 
 **Contributing Listing**:
-A Property Listing whose latest Capture within an Area Price Snapshot's Window was included in that Snapshot's average — it is a Residential Property Type (or untyped), and that Capture's price and area are positive and priced in the Snapshot's Dominant Currency. Because Snapshots don't persist membership, a Snapshot's Contributing Listings are reconstructed by re-querying current Property data against that run's Window and Dominant Currency; this reconstruction can drift from the Snapshot's cached count if a listing's type, Area, or price is edited after the run (accepted as a rare, self-correcting inconsistency — see `docs/adr/0008-snapshot-membership-reconstructed-not-persisted.md`).
+A Property Listing whose latest Capture within an Area Price Snapshot's Window was included in that Snapshot's average — it is a Residential Property Type (or untyped), and that Capture's Euro Price and area are positive. Because Snapshots don't persist membership, a Snapshot's Contributing Listings are reconstructed by re-querying current Property data against that run's Window; this reconstruction can drift from the Snapshot's cached count if a listing's type, Area, or price is edited after the run (accepted as a rare, self-correcting inconsistency — see `docs/adr/0008-snapshot-membership-reconstructed-not-persisted.md`).
 _Avoid_: Eligible property, snapshot member, included listing
 
 **Price Position**:
-A Property Listing's price-per-m² classified against its Area's cached Area Price Snapshot average, as `Above Area Average`, `Below Area Average`, or `In Line With Area Average` (within a ±5% band). Computed only when the Property Listing's `priceCurrency` matches the Area's `avgPriceCurrency` and the Area's snapshot was built from at least 5 Property Listings; otherwise there is no Price Position. Computed for every Property Listing regardless of Property Type — a non-Residential listing (e.g. a Shop) is still classified against the Area's Residential-only average, deliberately, rather than being excluded from Price Position too. Computed server-side so the band and minimum-sample rules stay in one place.
+A Property Listing's price-per-m² classified against its Area's cached Area Price Snapshot average, as `Above Area Average`, `Below Area Average`, or `In Line With Area Average` (within a ±5% band). Computed only when the Property Listing has a Euro Price and the Area's snapshot was built from at least 5 Property Listings; otherwise there is no Price Position. Computed for every Property Listing regardless of Property Type — a non-Residential listing (e.g. a Shop) is still classified against the Area's Residential-only average, deliberately, rather than being excluded from Price Position too. Computed server-side so the band and minimum-sample rules stay in one place.
 _Avoid_: Price indicator, relative price, over/underpriced
 
 **AI Provider**:

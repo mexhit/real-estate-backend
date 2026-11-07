@@ -4,14 +4,12 @@ export const PRICE_POSITION_BAND_PERCENT = 5;
 export const PRICE_POSITION_MIN_SNAPSHOT_SAMPLE_SIZE = 5;
 
 export interface PricePositionPropertyInput {
-  priceAmount: number | null;
-  priceCurrency: string | null;
+  priceEur: number | null;
   squareMeters: number | null;
 }
 
 export interface PricePositionAreaInput {
   avgPricePerSqm: number | null;
-  avgPriceCurrency: string | null;
   snapshotPropertyCount: number | null;
 }
 
@@ -31,19 +29,17 @@ export function computePricePosition(
 ): PricePositionResult {
   if (
     area == null ||
-    property.priceAmount == null ||
-    property.priceCurrency == null ||
+    property.priceEur == null ||
     property.squareMeters == null ||
     property.squareMeters <= 0 ||
     area.avgPricePerSqm == null ||
     area.avgPricePerSqm <= 0 ||
-    property.priceCurrency !== area.avgPriceCurrency ||
     (area.snapshotPropertyCount ?? 0) < PRICE_POSITION_MIN_SNAPSHOT_SAMPLE_SIZE
   ) {
     return NO_PRICE_POSITION;
   }
 
-  const pricePerSqm = property.priceAmount / property.squareMeters;
+  const pricePerSqm = property.priceEur / property.squareMeters;
   const percentage =
     ((pricePerSqm - area.avgPricePerSqm) / area.avgPricePerSqm) * 100;
 

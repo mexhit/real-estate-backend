@@ -9,13 +9,15 @@ import { attachListingMarks } from '../properties/listing-mark';
 import { computePricePosition } from '../properties/price-position';
 import {
   dedupeToLatestCapturePerListing,
-  determineDominantCurrency,
   EligibleContributingListing,
   filterResidential,
   getSnapshotWindowStart,
   isEligibleContributingListing,
   meanPricePerSqm,
 } from './contributing-listings.util';
+
+// Every Snapshot is computed on Euro Prices.
+const SNAPSHOT_CURRENCY = 'EUR';
 
 export interface ContributingListingsPage {
   summary: {
@@ -42,7 +44,7 @@ export interface ContributingListingsDistribution {
     id: number;
     providerId: string;
     title: string;
-    priceAmount: number;
+    priceEur: number;
     squareMeters: number;
     pricePerSqm: number;
   }[];
@@ -86,14 +88,11 @@ export class AreaPriceSnapshotsService {
 
     const residentialCaptures = filterResidential(capturesInWindow);
     const deduped = dedupeToLatestCapturePerListing(residentialCaptures);
-    const dominantCurrency = determineDominantCurrency(deduped);
-    const eligible = deduped.filter((property) =>
-      isEligibleContributingListing(property, dominantCurrency),
-    );
+    const eligible = deduped.filter(isEligibleContributingListing);
 
     const propertyCount = eligible.length;
     const avgPricePerSqm = propertyCount > 0 ? meanPricePerSqm(eligible) : null;
-    const currency = propertyCount > 0 ? dominantCurrency : null;
+    const currency = propertyCount > 0 ? SNAPSHOT_CURRENCY : null;
     const excludedCount = capturesInWindow.length - propertyCount;
 
     const snapshot = await this.snapshotRepository.save({
@@ -130,7 +129,7 @@ export class AreaPriceSnapshotsService {
 
     const listingsInRange = contributingListings.filter((property) =>
       isInPricePerSqmRange(
-        property.priceAmount / property.squareMeters,
+        property.priceEur / property.squareMeters,
         pricePerSqmRange,
       ),
     );
@@ -151,13 +150,11 @@ export class AreaPriceSnapshotsService {
     const enrichedData = markedListings.map((property) => {
       const { pricePosition, pricePositionPercentage } = computePricePosition(
         {
-          priceAmount: property.priceAmount,
-          priceCurrency: property.priceCurrency,
+          priceEur: property.priceEur,
           squareMeters: property.squareMeters,
         },
         {
           avgPricePerSqm: area.avgPricePerSqm,
-          avgPriceCurrency: area.avgPriceCurrency,
           snapshotPropertyCount: area.snapshotPropertyCount,
         },
       );
@@ -205,9 +202,9 @@ export class AreaPriceSnapshotsService {
         id: property.id,
         providerId: property.providerId,
         title: property.title,
-        priceAmount: property.priceAmount,
+        priceEur: property.priceEur,
         squareMeters: property.squareMeters,
-        pricePerSqm: property.priceAmount / property.squareMeters,
+        pricePerSqm: property.priceEur / property.squareMeters,
       })),
     };
   }
@@ -240,9 +237,7 @@ export class AreaPriceSnapshotsService {
     const residentialCaptures = filterResidential(capturesInWindow);
     const deduped = dedupeToLatestCapturePerListing(residentialCaptures);
     const contributingListings = deduped
-      .filter((property) =>
-        isEligibleContributingListing(property, area.avgPriceCurrency),
-      )
+      .filter(isEligibleContributingListing)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     return { area, windowStart, windowEnd, contributingListings };

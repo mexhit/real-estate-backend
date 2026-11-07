@@ -212,4 +212,98 @@ describe('ExchangeRatesService', () => {
       expect(result.points.map((p) => p.buy)).toEqual([91, 92]);
     });
   });
+
+  describe('getConversionRates', () => {
+    type Row = {
+      currency: string;
+      source: string;
+      fetchedAt: Date;
+      buy: number;
+    };
+    const row = (
+      currency: string,
+      source: string,
+      iso: string,
+      buy: number,
+    ): Row => ({ currency, source, fetchedAt: new Date(iso), buy });
+
+    // Minimal in-memory stand-in for the repository's findOne.
+    const useRows = (rows: Row[]) => {
+      repository.findOne.mockImplementation(
+        ({ where, order }: { where: any; order: any }) => {
+          const matching = rows.filter((r) => {
+            if (where.currency !== r.currency) return false;
+            if (where.source && where.source !== r.source) return false;
+            const at = where.fetchedAt;
+            if (at?.type === 'lessThanOrEqual' && !(r.fetchedAt <= at.value))
+              return false;
+            if (at?.type === 'moreThanOrEqual' && !(r.fetchedAt >= at.value))
+              return false;
+            return true;
+          });
+          matching.sort(
+            (a, b) =>
+              (a.fetchedAt.getTime() - b.fetchedAt.getTime()) *
+              (order.fetchedAt === 'DESC' ? -1 : 1),
+          );
+          return Promise.resolve(matching[0] ?? null);
+        },
+      );
+    };
+
+    it('returns the Sell Rate closest to the moment', async () => {
+      useRows([
+        row('EUR', 'A', '2026-10-01T10:00:00Z', 100),
+        row('EUR', 'A', '2026-10-01T12:00:00Z', 102),
+        row('USD', 'A', '2026-10-01T10:00:00Z', 90),
+        row('USD', 'A', '2026-10-01T12:00:00Z', 92),
+      ]);
+
+      expect(
+        await service.getConversionRates(new Date('2026-10-01T10:50:00Z')),
+      ).toEqual({ EUR: 100, USD: 90 });
+      expect(
+        await service.getConversionRates(new Date('2026-10-01T11:30:00Z')),
+      ).toEqual({ EUR: 102, USD: 92 });
+    });
+
+    it('uses the earliest rate for a moment before any was recorded', async () => {
+      useRows([
+        row('EUR', 'A', '2026-10-01T10:00:00Z', 100),
+        row('EUR', 'A', '2026-10-02T10:00:00Z', 105),
+      ]);
+
+      expect(
+        await service.getConversionRates(new Date('2026-01-01T00:00:00Z')),
+      ).toEqual({ EUR: 100 });
+    });
+
+    it('uses the latest rate for a moment after the last one', async () => {
+      useRows([
+        row('EUR', 'A', '2026-10-01T10:00:00Z', 100),
+        row('EUR', 'A', '2026-10-02T10:00:00Z', 105),
+      ]);
+
+      expect(
+        await service.getConversionRates(new Date('2026-12-01T00:00:00Z')),
+      ).toEqual({ EUR: 105 });
+    });
+
+    it('only uses the Rate Source of the latest euro rate', async () => {
+      useRows([
+        row('EUR', 'A', '2026-10-01T10:00:00Z', 100),
+        row('EUR', 'B', '2026-10-03T10:00:00Z', 110),
+      ]);
+
+      expect(
+        await service.getConversionRates(new Date('2026-10-01T10:00:00Z')),
+      ).toEqual({ EUR: 110 });
+    });
+
+    it('is empty when no rate has ever been recorded', async () => {
+      useRows([]);
+
+      expect(await service.getConversionRates(new Date())).toEqual({});
+    });
+  });
 });

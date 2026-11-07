@@ -122,6 +122,11 @@ export class Property {
   @Column({ nullable: true })
   priceCurrency: string | null;
 
+  // Euro Price: derived from priceAmount + priceCurrency, never set directly.
+  @Column({ type: 'integer', nullable: true })
+  @Index('IDX_property_price_eur')
+  priceEur: number | null;
+
   @Column({ type: 'integer', nullable: true })
   squareMeters: number | null;
 

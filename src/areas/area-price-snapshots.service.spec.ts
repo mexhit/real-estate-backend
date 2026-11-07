@@ -14,8 +14,7 @@ function makeProperty(overrides: Partial<Property>): Property {
     url: 'https://example.com/1',
     description: '',
     price: '',
-    priceAmount: 100000,
-    priceCurrency: 'EUR',
+    priceEur: 100000,
     squareMeters: 100,
     propertyType: null,
     areaId: 1,
@@ -67,12 +66,12 @@ describe('AreaPriceSnapshotsService', () => {
     propertyRepository.find.mockResolvedValue([
       makeProperty({
         providerId: 'p1',
-        priceAmount: 100000,
+        priceEur: 100000,
         squareMeters: 100,
       }), // 1000/m2
       makeProperty({
         providerId: 'p2',
-        priceAmount: 300000,
+        priceEur: 300000,
         squareMeters: 100,
       }), // 3000/m2
     ]);
@@ -89,18 +88,18 @@ describe('AreaPriceSnapshotsService', () => {
     propertyRepository.find.mockResolvedValue([
       makeProperty({
         providerId: 'p1',
-        priceAmount: 100000,
+        priceEur: 100000,
         squareMeters: 100,
       }),
-      makeProperty({ providerId: 'p2', priceAmount: null, squareMeters: 100 }),
-      makeProperty({ providerId: 'p3', priceAmount: 0, squareMeters: 100 }),
+      makeProperty({ providerId: 'p2', priceEur: null, squareMeters: 100 }),
+      makeProperty({ providerId: 'p3', priceEur: 0, squareMeters: 100 }),
       makeProperty({
         providerId: 'p4',
-        priceAmount: 100000,
+        priceEur: 100000,
         squareMeters: null,
       }),
-      makeProperty({ providerId: 'p5', priceAmount: 100000, squareMeters: 0 }),
-      makeProperty({ providerId: 'p6', priceAmount: 100000, squareMeters: -5 }),
+      makeProperty({ providerId: 'p5', priceEur: 100000, squareMeters: 0 }),
+      makeProperty({ providerId: 'p6', priceEur: 100000, squareMeters: -5 }),
     ]);
 
     const snapshot = await service.computeSnapshotForArea(area);
@@ -109,19 +108,34 @@ describe('AreaPriceSnapshotsService', () => {
     expect(snapshot.excludedCount).toBe(5);
   });
 
-  it('excludes listings outside the Dominant Currency, including null currency', async () => {
+  it('counts listings by their Euro Price whatever their original currency, and leaves out those without one', async () => {
     propertyRepository.find.mockResolvedValue([
-      makeProperty({ providerId: 'p1', priceCurrency: 'EUR' }),
-      makeProperty({ providerId: 'p2', priceCurrency: 'EUR' }),
-      makeProperty({ providerId: 'p3', priceCurrency: 'USD' }),
-      makeProperty({ providerId: 'p4', priceCurrency: null }),
+      makeProperty({
+        providerId: 'p1',
+        priceAmount: 100000,
+        priceCurrency: 'EUR',
+        priceEur: 100000,
+      }),
+      makeProperty({
+        providerId: 'p2',
+        priceAmount: 9_500_000,
+        priceCurrency: 'ALL',
+        priceEur: 95000,
+      }),
+      makeProperty({
+        providerId: 'p3',
+        priceAmount: 5000,
+        priceCurrency: 'GBP',
+        priceEur: null,
+      }),
     ]);
 
     const snapshot = await service.computeSnapshotForArea(area);
 
     expect(snapshot.currency).toBe('EUR');
     expect(snapshot.propertyCount).toBe(2);
-    expect(snapshot.excludedCount).toBe(2);
+    expect(snapshot.excludedCount).toBe(1);
+    expect(snapshot.avgPricePerSqm).toBe(975); // (1000 + 950) / 2
   });
 
   it('dedups to the most-recent Capture per providerId and never falls back to an older, valid Capture', async () => {
@@ -129,13 +143,13 @@ describe('AreaPriceSnapshotsService', () => {
       makeProperty({
         providerId: 'p1',
         createdAt: new Date('2026-09-01T00:00:00Z'),
-        priceAmount: 100000,
+        priceEur: 100000,
         squareMeters: 100,
       }),
       makeProperty({
         providerId: 'p1',
         createdAt: new Date('2026-09-03T00:00:00Z'),
-        priceAmount: null,
+        priceEur: null,
         squareMeters: 100,
       }),
     ]);
@@ -147,30 +161,9 @@ describe('AreaPriceSnapshotsService', () => {
     expect(snapshot.avgPricePerSqm).toBeNull();
   });
 
-  it('picks the currency shared by the most deduped rows as Dominant Currency', async () => {
-    propertyRepository.find.mockResolvedValue([
-      makeProperty({
-        providerId: 'p1',
-        createdAt: new Date('2026-09-01T00:00:00Z'),
-        priceCurrency: 'USD',
-      }),
-      makeProperty({
-        providerId: 'p1',
-        createdAt: new Date('2026-09-02T00:00:00Z'),
-        priceCurrency: 'EUR',
-      }),
-      makeProperty({ providerId: 'p2', priceCurrency: 'EUR' }),
-    ]);
-
-    const snapshot = await service.computeSnapshotForArea(area);
-
-    expect(snapshot.currency).toBe('EUR');
-    expect(snapshot.propertyCount).toBe(2);
-  });
-
   it('clears the average to null and still writes a Snapshot with propertyCount 0 when nothing is eligible', async () => {
     propertyRepository.find.mockResolvedValue([
-      makeProperty({ providerId: 'p1', priceAmount: null }),
+      makeProperty({ providerId: 'p1', priceEur: null }),
     ]);
 
     const snapshot = await service.computeSnapshotForArea(area);
@@ -186,7 +179,7 @@ describe('AreaPriceSnapshotsService', () => {
     propertyRepository.find.mockResolvedValue([
       makeProperty({
         providerId: 'p1',
-        priceAmount: 200000,
+        priceEur: 200000,
         squareMeters: 100,
       }),
     ]);
@@ -209,37 +202,37 @@ describe('AreaPriceSnapshotsService', () => {
       makeProperty({
         providerId: 'p1',
         propertyType: 'APARTMENT_1_1',
-        priceAmount: 100000,
+        priceEur: 100000,
         squareMeters: 100,
       }), // 1000/m2, residential
       makeProperty({
         providerId: 'p2',
         propertyType: null,
-        priceAmount: 100000,
+        priceEur: 100000,
         squareMeters: 100,
       }), // 1000/m2, untyped -> treated as residential
       makeProperty({
         providerId: 'p3',
         propertyType: 'SHOP',
-        priceAmount: 400000,
+        priceEur: 400000,
         squareMeters: 100,
       }), // 4000/m2, excluded
       makeProperty({
         providerId: 'p4',
         propertyType: 'OFFICE',
-        priceAmount: 400000,
+        priceEur: 400000,
         squareMeters: 100,
       }), // excluded
       makeProperty({
         providerId: 'p5',
         propertyType: 'LAND',
-        priceAmount: 400000,
+        priceEur: 400000,
         squareMeters: 100,
       }), // excluded
       makeProperty({
         providerId: 'p6',
         propertyType: 'PARKING',
-        priceAmount: 400000,
+        priceEur: 400000,
         squareMeters: 100,
       }), // excluded
     ]);
@@ -311,27 +304,24 @@ describe('AreaPriceSnapshotsService', () => {
         makeProperty({
           providerId: 'p1',
           propertyType: 'APARTMENT_1_1',
-          priceAmount: 100000,
+          priceEur: 100000,
           squareMeters: 100,
-          priceCurrency: 'EUR',
           createdAt: new Date('2026-09-05T00:00:00Z'),
         }),
         makeProperty({
           providerId: 'p2',
           propertyType: 'SHOP',
-          priceAmount: 400000,
+          priceEur: 400000,
           squareMeters: 100,
-          priceCurrency: 'EUR',
           createdAt: new Date('2026-09-06T00:00:00Z'),
         }), // excluded: non-Residential
         makeProperty({
           providerId: 'p3',
           propertyType: 'STUDIO',
-          priceAmount: 100000,
+          priceEur: null,
           squareMeters: 100,
-          priceCurrency: 'USD',
           createdAt: new Date('2026-09-07T00:00:00Z'),
-        }), // excluded: not the Snapshot's Dominant Currency
+        }), // excluded: no Euro Price
       ]);
 
       const result = await service.getContributingListings(1, 1, 10);
@@ -353,17 +343,14 @@ describe('AreaPriceSnapshotsService', () => {
       propertyRepository.find.mockResolvedValue([
         makeProperty({
           providerId: 'p1',
-          priceCurrency: 'EUR',
           createdAt: new Date('2026-09-01T00:00:00Z'),
         }),
         makeProperty({
           providerId: 'p2',
-          priceCurrency: 'EUR',
           createdAt: new Date('2026-09-03T00:00:00Z'),
         }),
         makeProperty({
           providerId: 'p3',
-          priceCurrency: 'EUR',
           createdAt: new Date('2026-09-02T00:00:00Z'),
         }),
       ]);
@@ -387,7 +374,6 @@ describe('AreaPriceSnapshotsService', () => {
       propertyRepository.find.mockResolvedValue([
         makeProperty({
           providerId: 'included',
-          priceCurrency: 'EUR',
           createdAt: new Date('2026-09-01T00:00:00Z'),
         }),
       ]);
@@ -419,9 +405,8 @@ describe('AreaPriceSnapshotsService', () => {
           [1000, 1500, 1750, 2000].map((pricePerSqm) =>
             makeProperty({
               providerId: `p${pricePerSqm}`,
-              priceAmount: pricePerSqm * 100,
+              priceEur: pricePerSqm * 100,
               squareMeters: 100,
-              priceCurrency: 'EUR',
             }),
           ),
         );
@@ -486,14 +471,14 @@ describe('AreaPriceSnapshotsService', () => {
           id: 1,
           providerId: 'p1',
           title: 'Cheap',
-          priceAmount: 100000,
+          priceEur: 100000,
           squareMeters: 100,
         }),
         makeProperty({
           id: 2,
           providerId: 'p2',
           title: 'Pricey',
-          priceAmount: 200000,
+          priceEur: 200000,
           squareMeters: 100,
         }),
         makeProperty({ id: 3, providerId: 'p3', propertyType: 'SHOP' }),
@@ -509,7 +494,7 @@ describe('AreaPriceSnapshotsService', () => {
             id: 1,
             providerId: 'p1',
             title: 'Cheap',
-            priceAmount: 100000,
+            priceEur: 100000,
             squareMeters: 100,
             pricePerSqm: 1000,
           },
@@ -517,7 +502,7 @@ describe('AreaPriceSnapshotsService', () => {
             id: 2,
             providerId: 'p2',
             title: 'Pricey',
-            priceAmount: 200000,
+            priceEur: 200000,
             squareMeters: 100,
             pricePerSqm: 2000,
           },

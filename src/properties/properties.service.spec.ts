@@ -9,6 +9,7 @@ import { PropertyEditHistory } from './property-edit-history.entity';
 import { PropertyMetadataExtractionService } from './property-metadata-extraction.service';
 import { AreasService } from '../areas/areas.service';
 import { Area } from '../areas/area.entity';
+import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
 
 describe('PropertiesService', () => {
   let service: PropertiesService;
@@ -33,6 +34,7 @@ describe('PropertiesService', () => {
     findOne: jest.Mock;
   };
   let configService: { get: jest.Mock };
+  let exchangeRatesService: { getConversionRates: jest.Mock };
 
   beforeEach(async () => {
     repository = {
@@ -59,6 +61,9 @@ describe('PropertiesService', () => {
       listActiveNames: jest.fn().mockResolvedValue([]),
       findOrCreate: jest.fn(),
       findOne: jest.fn(),
+    };
+    exchangeRatesService = {
+      getConversionRates: jest.fn().mockResolvedValue({ EUR: 100, USD: 95 }),
     };
     configService = {
       get: jest.fn((_key: string, defaultValue?: string) => defaultValue),
@@ -90,6 +95,10 @@ describe('PropertiesService', () => {
         {
           provide: ConfigService,
           useValue: configService,
+        },
+        {
+          provide: ExchangeRatesService,
+          useValue: exchangeRatesService,
         },
       ],
     }).compile();
@@ -209,6 +218,7 @@ describe('PropertiesService', () => {
     expect(extractionService.extract).toHaveBeenCalledWith(property, []);
     expect(repository.save).toHaveBeenCalledWith({
       ...property,
+      priceEur: 120000,
       source: 'duashpi',
       priceAmount: 120000,
       priceCurrency: 'EUR',
@@ -253,6 +263,7 @@ describe('PropertiesService', () => {
 
     expect(repository.save).toHaveBeenCalledWith({
       ...property,
+      priceEur: 95000,
       source: 'duashpi',
       areaId: null,
       aiResponseError: null,
@@ -396,6 +407,7 @@ describe('PropertiesService', () => {
 
     expect(repository.save).toHaveBeenCalledWith({
       ...property,
+      priceEur: null,
       source: 'duashpi',
       priceAmount: null,
       priceCurrency: null,
@@ -485,6 +497,7 @@ describe('PropertiesService', () => {
           },
           { provide: AreasService, useValue: areasService },
           { provide: ConfigService, useValue: configService },
+          { provide: ExchangeRatesService, useValue: exchangeRatesService },
         ],
       }).compile();
       const chunkedService = module.get<PropertiesService>(PropertiesService);
@@ -608,6 +621,7 @@ describe('PropertiesService', () => {
     expect(extractionService.extract).toHaveBeenCalledWith(property, []);
     expect(repository.save).toHaveBeenCalledWith({
       ...property,
+      priceEur: 450000,
       priceAmount: 450000,
       priceCurrency: 'EUR',
       squareMeters: 180,
@@ -1090,8 +1104,7 @@ describe('PropertiesService', () => {
       .mockResolvedValueOnce([
         {
           id: 1,
-          priceAmount: 111000,
-          priceCurrency: 'EUR',
+          priceEur: 111000,
           squareMeters: 100,
           areaAvgPricePerSqm: '1000',
           areaAvgPriceCurrency: 'EUR',
@@ -1116,8 +1129,7 @@ describe('PropertiesService', () => {
       .mockResolvedValueOnce([
         {
           id: 1,
-          priceAmount: 111000,
-          priceCurrency: 'EUR',
+          priceEur: 111000,
           squareMeters: 100,
           areaAvgPricePerSqm: null,
           areaAvgPriceCurrency: null,
@@ -1142,8 +1154,7 @@ describe('PropertiesService', () => {
           {
             id: 1,
             providerId: 'provider-1',
-            priceAmount: 89000,
-            priceCurrency: 'EUR',
+            priceEur: 89000,
             squareMeters: 100,
             area: {
               name: 'Blloku',
@@ -1155,8 +1166,7 @@ describe('PropertiesService', () => {
           {
             id: 2,
             providerId: 'provider-1',
-            priceAmount: 100000,
-            priceCurrency: 'EUR',
+            priceEur: 100000,
             squareMeters: 100,
             area: null,
           },
@@ -1273,6 +1283,7 @@ describe('PropertiesService', () => {
 
       expect(repository.save).toHaveBeenCalledWith({
         ...property,
+        priceEur: 150000,
         title: 'New title',
         priceAmount: 150000,
         manuallyEditedFields: ['title', 'priceAmount'],
@@ -1319,6 +1330,7 @@ describe('PropertiesService', () => {
 
       expect(repository.save).toHaveBeenCalledWith({
         ...property,
+        priceEur: null,
         price: '110,000 €',
         manuallyEditedFields: ['price'],
       });
@@ -1457,6 +1469,7 @@ describe('PropertiesService', () => {
 
       expect(repository.save).toHaveBeenCalledWith({
         ...property,
+        priceEur: 999999,
         priceCurrency: 'EUR',
         squareMeters: 65,
         propertyType: 'STUDIO',
@@ -1493,6 +1506,204 @@ describe('PropertiesService', () => {
       const updated = await service.updatePropertiesFromAi(properties);
 
       expect(updated).toMatchObject([{ id: 31, priceAmount: 500000 }]);
+    });
+  });
+
+  describe('Euro Price', () => {
+    const rawProperty = (overrides: Partial<Property> = {}) =>
+      ({
+        providerId: 'p-1',
+        title: 'Apartament',
+        url: 'https://example.com/p-1',
+        description: 'desc',
+        price: '9.500.000 Lek',
+        ...overrides,
+      }) as Property;
+
+    beforeEach(() => {
+      repository.save.mockImplementation(async (payload) => payload);
+    });
+
+    it('derives it from the extracted price when a capture is created', async () => {
+      extractionService.extract.mockResolvedValue({
+        priceAmount: 9_500_000,
+        priceCurrency: 'ALL',
+        squareMeters: 80,
+        propertyType: 'APARTMENT_2_1',
+        areaName: null,
+      });
+
+      const saved = await service.createProperty(rawProperty());
+
+      expect(saved.priceEur).toBe(95000);
+    });
+
+    it('ignores a Euro Price sent by the client', async () => {
+      extractionService.extract.mockResolvedValue({
+        priceAmount: 9_500_000,
+        priceCurrency: 'ALL',
+        squareMeters: 80,
+        propertyType: 'APARTMENT_2_1',
+        areaName: null,
+      });
+
+      const saved = await service.createProperty(
+        rawProperty({ priceEur: 1 } as Partial<Property>),
+      );
+
+      expect(saved.priceEur).toBe(95000);
+    });
+
+    it('leaves it empty, and still saves, when no rate exists yet', async () => {
+      exchangeRatesService.getConversionRates.mockResolvedValue({});
+      extractionService.extract.mockResolvedValue({
+        priceAmount: 9_500_000,
+        priceCurrency: 'ALL',
+        squareMeters: 80,
+        propertyType: 'APARTMENT_2_1',
+        areaName: null,
+      });
+
+      const saved = await service.createProperty(rawProperty());
+
+      expect(saved.priceEur).toBeNull();
+      expect(repository.save).toHaveBeenCalled();
+    });
+
+    it('derives it for each property of a bulk create', async () => {
+      extractionService.extractMany.mockResolvedValue([
+        {
+          priceAmount: 9_500_000,
+          priceCurrency: 'ALL',
+          squareMeters: 80,
+          propertyType: 'APARTMENT_2_1',
+          areaName: null,
+        },
+        {
+          priceAmount: 120_000,
+          priceCurrency: 'EUR',
+          squareMeters: 80,
+          propertyType: 'APARTMENT_2_1',
+          areaName: null,
+        },
+      ]);
+
+      const saved = await service.createProperties([
+        rawProperty({ providerId: 'a' }),
+        rawProperty({ providerId: 'b' }),
+      ]);
+
+      expect(saved.map((p) => p.priceEur)).toEqual([95000, 120000]);
+    });
+
+    it('is recomputed from the rate at the capture time when the currency is corrected', async () => {
+      const createdAt = new Date('2026-03-01T10:00:00Z');
+      repository.findOne.mockResolvedValue({
+        id: 5,
+        createdAt,
+        priceAmount: 95000,
+        priceCurrency: 'EUR',
+        priceEur: 95000,
+        manuallyEditedFields: [],
+      });
+
+      const saved = await service.updateProperty(
+        5,
+        { priceCurrency: 'ALL', priceAmount: 9_500_000 },
+        1,
+      );
+
+      expect(exchangeRatesService.getConversionRates).toHaveBeenCalledWith(
+        createdAt,
+      );
+      expect(saved.priceEur).toBe(95000);
+    });
+
+    it('cannot be edited directly', async () => {
+      repository.findOne.mockResolvedValue({
+        id: 5,
+        createdAt: new Date('2026-03-01T10:00:00Z'),
+        priceAmount: 95000,
+        priceCurrency: 'EUR',
+        priceEur: 95000,
+        title: 'old',
+        manuallyEditedFields: [],
+      });
+
+      const saved = await service.updateProperty(
+        5,
+        { title: 'new', priceEur: 1 } as any,
+        1,
+      );
+
+      expect(saved.priceEur).toBe(95000);
+    });
+
+    it('is derived when a single capture is refreshed from AI', async () => {
+      repository.findOne.mockResolvedValue({
+        id: 6,
+        createdAt: new Date('2026-03-01T10:00:00Z'),
+        manuallyEditedFields: [],
+      });
+      extractionService.extract.mockResolvedValue({
+        priceAmount: 100_000,
+        priceCurrency: 'USD',
+        squareMeters: 80,
+        propertyType: 'APARTMENT_2_1',
+        areaName: null,
+      });
+
+      await service.updatePropertyFromAi(6);
+
+      expect(repository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ priceEur: 95000 }),
+      );
+    });
+
+    it('follows a manually fixed amount when AI refreshes the rest', async () => {
+      const locked = {
+        id: 6,
+        createdAt: new Date('2026-03-01T10:00:00Z'),
+        priceAmount: 9_500_000,
+        priceCurrency: 'ALL',
+        manuallyEditedFields: ['priceAmount', 'priceCurrency'],
+      };
+      repository.findOne.mockResolvedValue(locked);
+      extractionService.extract.mockResolvedValue({
+        priceAmount: 1,
+        priceCurrency: 'EUR',
+        squareMeters: 80,
+        propertyType: 'APARTMENT_2_1',
+        areaName: null,
+      });
+
+      await service.updatePropertyFromAi(6);
+
+      expect(repository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ priceEur: 95000 }),
+      );
+    });
+
+    it('is derived when a batch is refreshed from AI', async () => {
+      extractionService.extractMany.mockResolvedValue([
+        {
+          priceAmount: 9_500_000,
+          priceCurrency: 'ALL',
+          squareMeters: 80,
+          propertyType: 'APARTMENT_2_1',
+          areaName: null,
+        },
+      ]);
+
+      const [saved] = await service.updatePropertiesFromAi([
+        {
+          id: 7,
+          createdAt: new Date('2026-03-01T10:00:00Z'),
+          manuallyEditedFields: [],
+        } as Property,
+      ]);
+
+      expect(saved.priceEur).toBe(95000);
     });
   });
 });

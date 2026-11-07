@@ -26,60 +26,24 @@ export function dedupeToLatestCapturePerListing(properties: Property[]): Propert
   return [...latestByProviderId.values()];
 }
 
-export function determineDominantCurrency(properties: Property[]): string | null {
-  const counts = new Map<string, number>();
-
-  for (const property of properties) {
-    if (property.priceCurrency == null) {
-      continue;
-    }
-
-    counts.set(
-      property.priceCurrency,
-      (counts.get(property.priceCurrency) ?? 0) + 1,
-    );
-  }
-
-  let dominantCurrency: string | null = null;
-  let dominantCount = 0;
-
-  for (const [currency, count] of counts) {
-    if (count > dominantCount) {
-      dominantCurrency = currency;
-      dominantCount = count;
-    }
-  }
-
-  return dominantCurrency;
-}
-
 export type EligibleContributingListing = Property & {
-  priceAmount: number;
+  priceEur: number;
   squareMeters: number;
 };
 
 export function isEligibleContributingListing(
   property: Property,
-  currency: string | null,
 ): property is EligibleContributingListing {
-  if (property.priceAmount == null || property.priceAmount <= 0) {
+  if (property.priceEur == null || property.priceEur <= 0) {
     return false;
   }
 
-  if (property.squareMeters == null || property.squareMeters <= 0) {
-    return false;
-  }
-
-  if (property.priceCurrency == null) {
-    return false;
-  }
-
-  return property.priceCurrency === currency;
+  return property.squareMeters != null && property.squareMeters > 0;
 }
 
 export function meanPricePerSqm(properties: EligibleContributingListing[]): number {
   const total = properties.reduce(
-    (sum, property) => sum + property.priceAmount / property.squareMeters,
+    (sum, property) => sum + property.priceEur / property.squareMeters,
     0,
   );
 

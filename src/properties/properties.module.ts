@@ -21,12 +21,14 @@ import { AiProviderResolver } from './ai-provider-resolver.service';
 import { PropertyAiEnrichmentJob } from './property-ai-enrichment.job';
 import { AreasModule } from '../areas/areas.module';
 import { SettingsModule } from '../settings/settings.module';
+import { ExchangeRatesModule } from '../exchange-rates/exchange-rates.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Property, PropertyEditHistory, ListingMark]),
     AreasModule,
     SettingsModule,
+    ExchangeRatesModule,
   ],
   controllers: [PropertiesController],
   providers: [
