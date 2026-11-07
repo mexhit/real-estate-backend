@@ -227,8 +227,19 @@ describe('ExchangeRatesService', () => {
       buy: number,
     ): Row => ({ currency, source, fetchedAt: new Date(iso), buy });
 
-    // Minimal in-memory stand-in for the repository's findOne.
+    // Minimal in-memory stand-in for the repository's findOne and find.
     const useRows = (rows: Row[]) => {
+      repository.find.mockImplementation(({ where }: { where: any }) =>
+        Promise.resolve(
+          rows
+            .filter(
+              (r) =>
+                r.source === where.source &&
+                where.currency.value.includes(r.currency),
+            )
+            .sort((a, b) => a.fetchedAt.getTime() - b.fetchedAt.getTime()),
+        ),
+      );
       repository.findOne.mockImplementation(
         ({ where, order }: { where: any; order: any }) => {
           const matching = rows.filter((r) => {
@@ -304,6 +315,81 @@ describe('ExchangeRatesService', () => {
       useRows([]);
 
       expect(await service.getConversionRates(new Date())).toEqual({});
+    });
+
+    it('lookup: returns the Sell Rate closest to the moment', async () => {
+      useRows([
+        row('EUR', 'A', '2026-10-01T10:00:00Z', 100),
+        row('EUR', 'A', '2026-10-01T12:00:00Z', 102),
+        row('USD', 'A', '2026-10-01T10:00:00Z', 90),
+        row('USD', 'A', '2026-10-01T12:00:00Z', 92),
+      ]);
+
+      expect(
+        (await service.getConversionRateLookup())(
+          new Date('2026-10-01T10:50:00Z'),
+        ),
+      ).toEqual({ EUR: 100, USD: 90 });
+      expect(
+        (await service.getConversionRateLookup())(
+          new Date('2026-10-01T11:30:00Z'),
+        ),
+      ).toEqual({ EUR: 102, USD: 92 });
+    });
+
+    it('lookup: uses the earliest rate for a moment before any was recorded', async () => {
+      useRows([
+        row('EUR', 'A', '2026-10-01T10:00:00Z', 100),
+        row('EUR', 'A', '2026-10-02T10:00:00Z', 105),
+      ]);
+
+      expect(
+        (await service.getConversionRateLookup())(
+          new Date('2026-01-01T00:00:00Z'),
+        ),
+      ).toEqual({ EUR: 100 });
+    });
+
+    it('lookup: uses the latest rate for a moment after the last one', async () => {
+      useRows([
+        row('EUR', 'A', '2026-10-01T10:00:00Z', 100),
+        row('EUR', 'A', '2026-10-02T10:00:00Z', 105),
+      ]);
+
+      expect(
+        (await service.getConversionRateLookup())(
+          new Date('2026-12-01T00:00:00Z'),
+        ),
+      ).toEqual({ EUR: 105 });
+    });
+
+    it('lookup: only uses the Rate Source of the latest euro rate', async () => {
+      useRows([
+        row('EUR', 'A', '2026-10-01T10:00:00Z', 100),
+        row('EUR', 'B', '2026-10-03T10:00:00Z', 110),
+      ]);
+
+      expect(
+        (await service.getConversionRateLookup())(
+          new Date('2026-10-01T10:00:00Z'),
+        ),
+      ).toEqual({ EUR: 110 });
+    });
+
+    it('lookup: is empty when no rate has ever been recorded', async () => {
+      useRows([]);
+
+      expect((await service.getConversionRateLookup())(new Date())).toEqual({});
+    });
+
+    it('lookup: reads the rates table once, however many moments are asked', async () => {
+      useRows([row('EUR', 'A', '2026-10-01T10:00:00Z', 100)]);
+
+      const lookup = await service.getConversionRateLookup();
+      lookup(new Date('2026-01-01T00:00:00Z'));
+      lookup(new Date('2026-12-01T00:00:00Z'));
+
+      expect(repository.find).toHaveBeenCalledTimes(1);
     });
   });
 });

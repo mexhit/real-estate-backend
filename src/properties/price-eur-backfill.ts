@@ -12,7 +12,10 @@ type BackfillRow = Pick<
 export interface BackfillStore {
   // Rows with id greater than `afterId`, ascending, at most `size` of them.
   findBatch(afterId: number, size: number): Promise<BackfillRow[]>;
-  setPriceEur(id: number, priceEur: number | null): Promise<void>;
+  // Writes a whole batch of changes in one go.
+  applyChanges(
+    changes: { id: number; priceEur: number | null }[],
+  ): Promise<void>;
 }
 
 export interface BackfillResult {
@@ -34,7 +37,7 @@ export async function backfillPriceEur({
   dryRun = false,
 }: {
   store: BackfillStore;
-  getRates: (at: Date) => Promise<ConversionRates>;
+  getRates: (at: Date) => ConversionRates | Promise<ConversionRates>;
   batchSize?: number;
   dryRun?: boolean;
 }): Promise<BackfillResult> {
@@ -44,6 +47,8 @@ export async function backfillPriceEur({
   for (;;) {
     const batch = await store.findBatch(afterId, batchSize);
     if (batch.length === 0) return result;
+
+    const changes: { id: number; priceEur: number | null }[] = [];
 
     for (const row of batch) {
       const next = convertToEur(
@@ -56,9 +61,11 @@ export async function backfillPriceEur({
       if (next === null) result.empty++;
       if (next !== row.priceEur) {
         result.changed++;
-        if (!dryRun) await store.setPriceEur(row.id, next);
+        changes.push({ id: row.id, priceEur: next });
       }
     }
+
+    if (changes.length > 0 && !dryRun) await store.applyChanges(changes);
 
     afterId = batch[batch.length - 1].id;
   }

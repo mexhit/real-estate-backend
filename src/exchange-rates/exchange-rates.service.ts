@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   Between,
+  In,
   LessThan,
   LessThanOrEqual,
   MoreThanOrEqual,
@@ -279,6 +280,60 @@ export class ExchangeRatesService {
     }
 
     return rates;
+  }
+
+  /**
+   * Same answers as getConversionRates, but reads the rates once and answers
+   * any number of moments from memory. For bulk work such as the backfill.
+   */
+  async getConversionRateLookup(): Promise<(at: Date) => ConversionRates> {
+    const latestEuro = await this.repository.findOne({
+      where: { currency: 'EUR' },
+      order: { fetchedAt: 'DESC', id: 'DESC' },
+    });
+    if (!latestEuro) return () => ({});
+
+    const rows = await this.repository.find({
+      where: {
+        source: latestEuro.source,
+        currency: In([...EXCHANGE_RATE_CURRENCIES]),
+      },
+      order: { fetchedAt: 'ASC', id: 'ASC' },
+    });
+    const byCurrency = new Map<string, ExchangeRate[]>();
+    for (const row of rows) {
+      byCurrency.set(row.currency, [
+        ...(byCurrency.get(row.currency) ?? []),
+        row,
+      ]);
+    }
+
+    return (at) => {
+      const rates: ConversionRates = {};
+      for (const currency of EXCHANGE_RATE_CURRENCIES) {
+        const series = byCurrency.get(currency) ?? [];
+        // First index whose fetchedAt is after `at`; the one before it is the
+        // latest rate at or before `at`.
+        let low = 0;
+        let high = series.length;
+        while (low < high) {
+          const mid = (low + high) >> 1;
+          if (series[mid].fetchedAt.getTime() <= at.getTime()) low = mid + 1;
+          else high = mid;
+        }
+        const before = series[low - 1];
+        const after = series[low];
+        const closest =
+          before && after
+            ? at.getTime() - before.fetchedAt.getTime() <=
+              after.fetchedAt.getTime() - at.getTime()
+              ? before
+              : after
+            : (before ?? after);
+        if (closest) rates[currency] = closest.buy;
+      }
+      return rates;
+    };
   }
 
   async getHistory(

@@ -19,18 +19,22 @@ const row = (id: number, overrides: Partial<Row> = {}): Row => ({
 
 const makeStore = (rows: Row[]) => {
   const writes: Array<[number, number | null]> = [];
+  const batches: number[] = [];
   const store: BackfillStore = {
     findBatch: async (afterId, size) =>
       rows
         .filter((r) => r.id > afterId)
         .sort((a, b) => a.id - b.id)
         .slice(0, size),
-    setPriceEur: async (id, value) => {
-      writes.push([id, value]);
-      rows.find((r) => r.id === id)!.priceEur = value;
+    applyChanges: async (changes) => {
+      batches.push(changes.length);
+      for (const { id, priceEur } of changes) {
+        writes.push([id, priceEur]);
+        rows.find((r) => r.id === id)!.priceEur = priceEur;
+      }
     },
   };
-  return { store, writes, rows };
+  return { store, writes, rows, batches };
 };
 
 const rates = async () => ({ EUR: 100, USD: 95 });
@@ -121,5 +125,29 @@ describe('backfillPriceEur', () => {
 
     expect(result.scanned).toBe(5);
     expect(rows.every((r) => r.priceEur === 95000)).toBe(true);
+  });
+
+  it('writes each batch of changes in one call, not row by row', async () => {
+    const { store, batches } = makeStore([
+      row(1),
+      row(2),
+      row(3),
+      row(4),
+      row(5),
+    ]);
+
+    await backfillPriceEur({ store, getRates: rates, batchSize: 3 });
+
+    expect(batches).toEqual([3, 2]);
+  });
+
+  it('does not call the store when a batch has nothing to change', async () => {
+    const { store, batches } = makeStore([
+      row(1, { priceAmount: 95000, priceCurrency: 'EUR', priceEur: 95000 }),
+    ]);
+
+    await backfillPriceEur({ store, getRates: rates });
+
+    expect(batches).toEqual([]);
   });
 });
