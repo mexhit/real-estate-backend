@@ -234,7 +234,9 @@ export class PropertiesService {
          MIN(property."createdAt") OVER (PARTITION BY property."providerId") as first_post,
          MAX(property."createdAt") OVER (PARTITION BY property."providerId") as last_post,
          FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id ASC) as first_price,
-         FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as last_price
+         FIRST_VALUE(property.price) OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as last_price,
+         FIRST_VALUE(property."priceEur") OVER (PARTITION BY property."providerId" ORDER BY property.id ASC) as first_price_eur,
+         FIRST_VALUE(property."priceEur") OVER (PARTITION BY property."providerId" ORDER BY property.id DESC) as last_price_eur
        FROM property
               LEFT JOIN price_change_check pcc ON pcc."providerId" = property."providerId"
               LEFT JOIN area ON area.id = property."areaId"
@@ -314,6 +316,8 @@ export class PropertiesService {
         lastPostedAt: entity.last_post,
         firstPrice: entity.first_price,
         lastPrice: entity.last_price,
+        firstPriceEur: entity.first_price_eur,
+        lastPriceEur: entity.last_price_eur,
         areaAvgPricePerSqm,
         areaAvgPriceCurrency: entity.areaAvgPriceCurrency,
         areaSnapshotPropertyCount,

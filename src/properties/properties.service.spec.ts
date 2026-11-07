@@ -1099,6 +1099,23 @@ describe('PropertiesService', () => {
     );
   });
 
+  it('reports the first and last Euro Price of a listing', async () => {
+    repository.query
+      .mockResolvedValueOnce([
+        { id: 1, first_price_eur: 100000, last_price_eur: 95000 },
+      ])
+      .mockResolvedValueOnce([{ total: '1' }]);
+    repository.update.mockResolvedValue({ affected: 0 });
+
+    const result = await service.getProperties(1, 10, {});
+
+    expect(result.data[0]).toMatchObject({
+      firstPriceEur: 100000,
+      lastPriceEur: 95000,
+    });
+    expect(repository.query.mock.calls[0][0]).toContain('first_price_eur');
+  });
+
   it('classifies a listed property as above the area average', async () => {
     repository.query
       .mockResolvedValueOnce([
