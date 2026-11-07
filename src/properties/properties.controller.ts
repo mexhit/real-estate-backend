@@ -44,6 +44,8 @@ export class PropertiesController {
     @Query('sources') sources: string | string[],
     @Query('isFurnished') isFurnished: string,
     @Query('search') search?: string,
+    @Query('id') id?: string,
+    @Query('providerId') providerId?: string,
   ) {
     // Ensure positive integers
     page = Math.max(1, Number(page));
@@ -106,6 +108,8 @@ export class PropertiesController {
             ? false
             : undefined,
       search,
+      id,
+      providerId,
     });
   }
 

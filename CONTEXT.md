@@ -88,6 +88,10 @@ _Avoid_: Has furniture, equipped
 A free-text filter on the Property Listing list. A Property Listing matches when every word typed appears in the title or the description of its latest Capture, ignoring case and accents. The words may be spread across title and description. Combines with every other filter, and does not change the list's ordering.
 _Avoid_: Query, keyword filter, find
 
+**Search Type**:
+How the Search box on the Property Listing list is read, chosen in the frontend: `Text` (the default, the Search above), `ID`, or `Provider ID`. `ID` and `Provider ID` are exact: the whole box must equal a Capture's `id` (a whole number) or the listing's `providerId`, as stored, with no case or accent folding. An `ID` search finds the Property Listing owning that Capture, even when it is not the latest Capture, and the row still shows the latest Capture. A value that is not a whole number matches nothing. An empty box applies no filter. Like Search, an exact search combines with every other filter, so a Dismissed listing stays hidden under "Hide dismissed". The backend knows no Search Type: it only receives an `id` or `providerId` filter.
+_Avoid_: Query, lookup, search mode
+
 **Bookmarked**:
 A Property Listing marked by the user as one to keep an eye on. Belongs to the Property Listing, not to a Capture, so it survives a re-post. Shared by all users. A Property Listing is never both Bookmarked and Dismissed: marking one clears the other.
 _Avoid_: Favorite, saved, starred

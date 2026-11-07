@@ -489,4 +489,40 @@ describe('PropertiesController', () => {
     const filters = propertiesService.getProperties.mock.calls[0][2];
     expect(filters.search).toBeUndefined();
   });
+
+  it('forwards the id and providerId lookups to the service untouched', async () => {
+    propertiesService.getProperties.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
+    });
+
+    await controller.getProperties(
+      1,
+      10,
+      undefined,
+      undefined,
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '42',
+      'abc-1',
+    );
+
+    expect(propertiesService.getProperties).toHaveBeenCalledWith(
+      1,
+      10,
+      expect.objectContaining({ id: '42', providerId: 'abc-1' }),
+    );
+  });
 });

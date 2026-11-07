@@ -75,6 +75,9 @@ type PropertyFilters = {
   sources?: PropertySource[];
   isFurnished?: boolean;
   search?: string;
+  // Exact lookups: the `id` of any Capture, and the stored `providerId`.
+  id?: string;
+  providerId?: string;
 };
 
 const SEARCH_MAX_CHARACTERS = 100;
@@ -207,6 +210,27 @@ export class PropertiesService {
           `OR unaccent(ranked_properties."description") ILIKE '%' || unaccent(${placeholder}) || '%')`,
       );
       whereParams.push(word);
+    }
+
+    if (typeof filters.id === 'string' && filters.id.trim() !== '') {
+      const captureId = filters.id.trim();
+
+      if (/^\d{1,9}$/.test(captureId)) {
+        conditions.push(
+          `ranked_properties."providerId" IN (SELECT "providerId" FROM property WHERE id = $${paramIndex++})`,
+        );
+        whereParams.push(Number(captureId));
+      } else {
+        conditions.push('FALSE');
+      }
+    }
+
+    if (
+      typeof filters.providerId === 'string' &&
+      filters.providerId.trim() !== ''
+    ) {
+      conditions.push(`ranked_properties."providerId" = $${paramIndex++}`);
+      whereParams.push(filters.providerId.trim());
     }
 
     const whereSql =

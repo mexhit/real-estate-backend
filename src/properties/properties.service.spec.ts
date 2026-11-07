@@ -954,6 +954,52 @@ describe('PropertiesService', () => {
     );
   });
 
+  describe('exact id and providerId filters', () => {
+    const run = async (filters: { id?: string; providerId?: string }) => {
+      repository.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ total: '0' }]);
+      repository.update.mockResolvedValue({ affected: 0 });
+      await service.getProperties(1, 10, filters);
+      return {
+        listSql: repository.query.mock.calls[0][0] as string,
+        listParams: repository.query.mock.calls[0][1],
+        countParams: repository.query.mock.calls[1][1],
+      };
+    };
+
+    it('finds the listing owning any Capture with that id', async () => {
+      const { listSql, listParams, countParams } = await run({ id: ' 42 ' });
+      expect(listSql).toContain(
+        'ranked_properties."providerId" IN (SELECT "providerId" FROM property WHERE id = $1)',
+      );
+      expect(listParams).toEqual([42, 10, 0]);
+      expect(countParams).toEqual([42]);
+    });
+
+    it.each(['abc', '4x', '-1', '1.5', '99999999999'])(
+      'matches nothing for the non-id %j',
+      async (id) => {
+        const { listSql, listParams } = await run({ id });
+        expect(listSql).toContain('AND FALSE');
+        expect(listParams).toEqual([10, 0]);
+      },
+    );
+
+    it('matches the providerId exactly as stored', async () => {
+      const { listSql, listParams } = await run({ providerId: ' Ab-12 ' });
+      expect(listSql).toContain('ranked_properties."providerId" = $1');
+      expect(listParams).toEqual(['Ab-12', 10, 0]);
+    });
+
+    it.each(['', '   ', undefined])('adds no condition for %j', async (v) => {
+      const { listSql, listParams } = await run({ id: v, providerId: v });
+      expect(listSql).not.toContain('FALSE');
+      expect(listSql).not.toContain('ranked_properties."providerId" =');
+      expect(listParams).toEqual([10, 0]);
+    });
+  });
+
   describe('search normalization', () => {
     const wordCondition = (n: number) =>
       `(unaccent(ranked_properties."title") ILIKE '%' || unaccent($${n}) || '%' ` +
